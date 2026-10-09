@@ -5,7 +5,7 @@ An Android keyboard that never touches the internet. By [The Scarlet Coder](http
 - Standard QWERTY, sized for tablets and phones, in light and dark (or following the system).
 - Long-press for accents: é è ê ë, á à â ä, ó ò ô ö, ú ù û ü, í ì î ï, ñ, ç.
 - On phones, the letter you're pressing shows above your thumb (can be turned off).
-- Offline word suggestions and autocorrect. One backspace undoes an autocorrect.
+- Offline word suggestions and autocorrect. One backspace undoes an autocorrect (after a space or punctuation), and a word you take back stays as you typed it. Backspacing into a word picks the whole word back up.
 - Optional: learns your own words so it stops correcting them. Single words only, encrypted on the device, never from password fields. Off until you turn it on.
 - Key sound and vibration are built in, both off by default.
 - No network access at all. The build fails if any dependency tries to add it.

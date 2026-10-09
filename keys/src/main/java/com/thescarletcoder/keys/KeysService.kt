@@ -19,7 +19,11 @@ import java.util.concurrent.Executors
  * only optional learned single words, encrypted, and never from password or no-learning fields.
  */
 class KeysService : InputMethodService(), KeyListener {
-    private companion object { const val TAG = "ScarletKeys" }
+    private companion object {
+        const val TAG = "ScarletKeys"
+        /** Longest word Keys picks back up when the cursor returns to a word's end. */
+        const val MAX_WORD = 48
+    }
 
     private lateinit var prefs: KeysPrefs
     private lateinit var panel: KeyboardPanel
@@ -57,6 +61,15 @@ class KeysService : InputMethodService(), KeyListener {
     /** Set right after an autocorrect; one backspace puts back what Sam actually typed. */
     private var undo: Undo? = null
     private class Undo(val original: String, val corrected: String, val separator: String)
+
+    /**
+     * Words Sam took back from autocorrect in this field (lowercase): never corrected again here, even where the
+     * field turns learning off. Held in memory only and cleared for each new field.
+     */
+    private val kept = HashSet<String>()
+
+    /** The cursor, from the editor's last selection update (-1 until the first one). */
+    private var cursor = -1
 
     /** Theme, key height or bubble changed in Settings: rebuild so it applies while the keyboard is up. */
     private val prefsChanged = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -154,6 +167,7 @@ class KeysService : InputMethodService(), KeyListener {
             enterAction != EditorInfo.IME_ACTION_NONE && enterAction != EditorInfo.IME_ACTION_UNSPECIFIED
 
         keyboard.rows = if (numeric) Layouts.numpad else Layouts.letters
+        if (BuildConfig.TUNING) FieldLog.add(this, info.packageName, cls, variation, numeric)
         keyboard.enterKind = if (!useEnterAction) EnterKind.RETURN else when (enterAction) {
             EditorInfo.IME_ACTION_SEND -> EnterKind.SEND
             EditorInfo.IME_ACTION_GO -> EnterKind.GO
@@ -171,6 +185,8 @@ class KeysService : InputMethodService(), KeyListener {
 
         composing.clear()
         undo = null
+        kept.clear()
+        cursor = info.initialSelEnd
         strip.clear()
         // The strip is always there (the keyboard never changes height). Private fields say so.
         val noLearning = info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
@@ -188,6 +204,7 @@ class KeysService : InputMethodService(), KeyListener {
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        cursor = if (newSelStart == newSelEnd) newSelEnd else -1
         // Sam tapped elsewhere in the text: stop working on the old word.
         if (composing.isNotEmpty() && (newSelStart != newSelEnd || candidatesEnd == -1 || newSelStart != candidatesEnd)) {
             composing.clear()
@@ -238,15 +255,45 @@ class KeysService : InputMethodService(), KeyListener {
         val wordChar = c.isLetter() || (c == '\'' && composing.isNotEmpty())
         when {
             wordChar && suggestOn -> {
+                // Typing right after the end of a word (after backspacing into it) carries on that word, so
+                // "exevute", back to "exe", then "cute" is one word again, not a new one starting at the cursor.
+                val ic = currentInputConnection
+                // One batch, so the editor reports a single change and never a moment with no word being typed.
+                ic?.beginBatchEdit()
+                if (composing.isEmpty()) resumeWord()
                 composing.append(s)
-                currentInputConnection?.setComposingText(composing, 1)
+                ic?.setComposingText(composing, 1)
+                ic?.endBatchEdit()
                 refreshSuggestions()
+                undo = null
             }
-            c.isLetterOrDigit() -> { finishComposing(); currentInputConnection?.commitText(s, 1) }
+            c.isLetterOrDigit() -> { finishComposing(); currentInputConnection?.commitText(s, 1); undo = null }
+            // Punctuation finishes the word and may autocorrect it; its undo must survive (it used to be wiped
+            // right here, so backspace after "CINC?" deleted the "?" instead of putting "CINC" back).
             else -> separator(s)
         }
-        undo = null
         if (keyboard.shift == Shift.ONE) keyboard.shift = Shift.OFF
+    }
+
+    /**
+     * Pick up the word the cursor sits at the end of, as the word being typed. Only at a word's end (a letter
+     * right after the cursor means Sam is editing inside a word; that's left alone). Returns true if it did.
+     */
+    private fun resumeWord(): Boolean {
+        val ic = currentInputConnection ?: return false
+        if (!suggestOn || cursor < 0) return false
+        val after = ic.getTextAfterCursor(1, 0)?.toString().orEmpty()
+        if (after.isNotEmpty() && (after[0].isLetter() || after[0] == '\'')) return false
+        val before = ic.getTextBeforeCursor(MAX_WORD, 0)?.toString() ?: return false
+        var n = 0
+        while (n < before.length && (before[before.length - 1 - n].isLetter() || before[before.length - 1 - n] == '\'')) n++
+        if (n == 0 || n == before.length && before.length == MAX_WORD) return false   // no word, or longer than any word
+        val word = before.substring(before.length - n).trimStart('\'')
+        if (word.isEmpty()) return false
+        if (!ic.setComposingRegion(cursor - word.length, cursor)) return false
+        composing.clear()
+        composing.append(word)
+        return true
     }
 
     /** Space or punctuation: the word is finished, so this is where autocorrect happens. */
@@ -281,17 +328,34 @@ class KeysService : InputMethodService(), KeyListener {
         val ic = currentInputConnection ?: return
         val u = undo
         if (u != null) {
-            // Undo the autocorrect: put back exactly what was typed, and remember it.
+            // Undo the autocorrect: put back exactly what was typed, separator included ("CINC?" stays "CINC?"),
+            // and never correct that word again in this field.
             ic.deleteSurroundingText(u.corrected.length + u.separator.length, 0)
-            ic.commitText(u.original, 1)
+            ic.commitText(u.original + u.separator, 1)
             undo = null
+            kept += u.original.lowercase()
             if (learnOn) { userWords.record(u.original); userWords.record(u.original) }
+            strip.clear()
+            updateAutoCaps()
             return
         }
         if (composing.isNotEmpty()) {
             composing.setLength(composing.length - 1)
             if (composing.isEmpty()) { ic.commitText("", 1); strip.clear() }
             else { ic.setComposingText(composing, 1); refreshSuggestions() }
+            return
+        }
+        // Backspacing into the end of a word: take it up again, so suggestions and autocorrect see the whole word.
+        val prev = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
+        if (suggestOn && cursor > 0 && prev.isNotEmpty() && prev[0].isLetter()) {
+            ic.beginBatchEdit()
+            ic.deleteSurroundingText(1, 0)
+            cursor -= 1
+            val resumed = resumeWord()
+            if (resumed) ic.setComposingText(composing, 1)
+            ic.endBatchEdit()
+            if (resumed) refreshSuggestions() else strip.clear()
+            updateAutoCaps()
             return
         }
         sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
@@ -359,12 +423,13 @@ class KeysService : InputMethodService(), KeyListener {
         val my = ++seq
         val learnNow = learnOn
         val correctNow = autocorrectOn
+        val keptNow = HashSet(kept)
         worker.execute {
             val started = System.nanoTime()
             val boost: (String) -> Int = { if (learnNow) userWords.boost(it) else 0 }
             val learned = if (learnNow) userWords.learned else emptyList()
             val known = { w: String -> d.isKnown(w) || (learnNow && userWords.isKnown(w)) }
-            val pick = if (correctNow) d.autocorrect(typed, known, boost, learned)?.let { matchCase(typed, it) } else null
+            val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned)?.let { matchCase(typed, it) } else null
             val ranked = d.candidates(typed, boost, learned).map { matchCase(typed, it.word) }.distinct()
             val list = ArrayList<String>(3)
             val highlight: Int
@@ -390,7 +455,7 @@ class KeysService : InputMethodService(), KeyListener {
 
     /** The fix for a finished word: reuse the background result if it's for this exact word, else work it out now. */
     private fun fixFor(original: String): String? {
-        if (!autocorrectOn) return null
+        if (!autocorrectOn || original.lowercase() in kept) return null
         if (pickFor == original) return autocorrectPick
         val d = dict ?: return null
         val known = { w: String -> d.isKnown(w) || (learnOn && userWords.isKnown(w)) }

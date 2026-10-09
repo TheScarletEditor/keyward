@@ -1,10 +1,15 @@
-# Build the debug APK and install it over USB.
+# Build Scarlet Keys and install it over USB.
+#
+# Default is the `personal` build: release-optimized (fast, not debuggable) but signed with this laptop's debug key,
+# so it installs over earlier debug installs and keeps learned words. Never install a `release` build on Sam's
+# devices: a different key forces an uninstall, which wipes learned words.
 #
 # Run:
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1              (the one connected device)
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Serial XYZ  (pick one when several are plugged in)
+#   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Debug       (a debug build instead)
 
-param([string]$Serial)
+param([string]$Serial, [switch]$Debug)
 
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
@@ -18,11 +23,13 @@ if (-not $Serial) {
     $Serial = $serials[0]
 }
 
-Write-Host "Building Scarlet Keys..."
-cmd /c ".\gradlew.bat :keys:assembleDebug --console=plain -q"
+$type = if ($Debug) { 'debug' } else { 'personal' }
+$task = if ($Debug) { 'assembleDebug' } else { 'assemblePersonal' }
+Write-Host "Building Scarlet Keys ($type)..."
+cmd /c ".\gradlew.bat :keys:$task --console=plain -q"
 if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
 
 Write-Host "Installing..."
-& $adb -s $Serial install -r ".\keys\build\outputs\apk\debug\keys-debug.apk"
+& $adb -s $Serial install -r ".\keys\build\outputs\apk\$type\keys-$type.apk"
 if ($LASTEXITCODE -ne 0) { Write-Host "Install failed."; exit 1 }
-Write-Host "Done. Scarlet Keys is installed."
+Write-Host "Done. Scarlet Keys ($type) is installed."

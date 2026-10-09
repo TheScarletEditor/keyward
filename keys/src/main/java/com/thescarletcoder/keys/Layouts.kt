@@ -14,6 +14,11 @@ data class Key(
 
 /** Standard layouts. Sam tweaks from here (docs/KEYS-SPEC.md). */
 object Layouts {
+    /** Long-press accents (KEYS-POLISH-SPEC section 9). Keys not listed keep long press = digit. */
+    val accents: Map<Char, String> = mapOf(
+        'e' to "éèêë", 'a' to "áàâä", 'o' to "óòôö", 'u' to "úùûü", 'i' to "íìîï", 'n' to "ñ", 'c' to "ç",
+    )
+
     private fun chars(s: String, alts: String? = null) =
         s.mapIndexed { i, c -> Key(c.toString(), alt = alts?.getOrNull(i)?.toString()) }
 

@@ -1,16 +1,17 @@
 package com.thescarletcoder.keys
 
+import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
-import android.media.AudioManager
 import android.os.SystemClock
 import android.text.InputType
-import android.view.HapticFeedbackConstants
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
-import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.widget.LinearLayout
+import com.thescarletcoder.scarlet.Motion
+import com.thescarletcoder.scarlet.ScarletTokens
 import java.util.concurrent.Executors
 
 /**
@@ -18,11 +19,23 @@ import java.util.concurrent.Executors
  * only optional learned single words, encrypted, and never from password or no-learning fields.
  */
 class KeysService : InputMethodService(), KeyListener {
+    private companion object { const val TAG = "ScarletKeys" }
 
     private lateinit var prefs: KeysPrefs
-    private lateinit var keyboard: KeyboardView
-    private lateinit var strip: SuggestionStrip
+    private lateinit var panel: KeyboardPanel
+    private val keyboard get() = panel.keyboard
+    private val strip get() = panel.strip
     private lateinit var userWords: UserWords
+    private lateinit var feedback: Feedback
+    private var soundOn = false
+    private var vibrateOn = false
+    private val insetLoc = IntArray(2)
+
+    // Personal and debug builds: timing, logged (never anything typed).
+    private var createdAt = 0L
+    private var firstSuggestionLogged = false
+    private val suggestNanos = LongArray(64)
+    private var suggestCount = 0
     @Volatile private var dict: Dictionary? = null
     private val worker = Executors.newSingleThreadExecutor()
 
@@ -45,43 +58,77 @@ class KeysService : InputMethodService(), KeyListener {
     private var undo: Undo? = null
     private class Undo(val original: String, val corrected: String, val separator: String)
 
+    /** Theme, key height or bubble changed in Settings: rebuild so it applies while the keyboard is up. */
+    private val prefsChanged = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key in setOf("theme", "key_height", "bubble") && ::panel.isInitialized) rebuild()
+    }
+
     override fun onCreate() {
         super.onCreate()
+        createdAt = SystemClock.elapsedRealtime()
         prefs = KeysPrefs(this)
+        KeysTuning.init(this)
         userWords = UserWords(this)
+        feedback = Feedback(this)
+        prefs.listen(prefsChanged)
         worker.execute {
+            val t = SystemClock.elapsedRealtime()
             dict = runCatching { Dictionary.load(this) }.getOrNull()
+            if (BuildConfig.TUNING) Log.d(TAG, "dictionary loaded in ${SystemClock.elapsedRealtime() - t} ms (${dict?.size ?: 0} words)")
             userWords.load()
         }
     }
 
     override fun onCreateInputView(): View {
-        keyboard = KeyboardView(this, this)
-        strip = SuggestionStrip(this) { pick(it) }
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(KeyColors.BG)
-            addView(strip)
-            addView(keyboard)
-            // The keyboard window reaches behind the navigation bar; keep the keys above it so Android's
-            // hide-keyboard and switch-keyboard buttons never sit on top of ?123 and Enter.
-            setOnApplyWindowInsetsListener { v, insets ->
-                // On ZUI with gesture navigation the IME's back/switch buttons are not reported as a navigation
-                // bar, so take the largest of the bottom insets the system offers.
-                val bottom = maxOf(
-                    insets.getInsets(WindowInsets.Type.navigationBars()).bottom,
-                    insets.getInsets(WindowInsets.Type.tappableElement()).bottom,
-                    insets.getInsets(WindowInsets.Type.mandatorySystemGestures()).bottom,
-                    insets.getInsets(WindowInsets.Type.systemGestures()).bottom,
-                )
-                v.setPadding(0, 0, 0, bottom)
-                insets
-            }
-        }
+        panel = KeyboardPanel(this, this) { pick(it) }
+        // The keyboard window reaches behind the navigation bar; keep the keys above it so Android's
+        // hide-keyboard and switch-keyboard buttons never sit on top of ?123 and Enter.
+        panel.keepAboveNavigation()
+        applyLook()
+        return panel
+    }
+
+    private fun applyLook() {
+        val palette = ScarletTokens.resolve(prefs.theme)
+        panel.apply(KeyColors(palette), prefs.keyHeight, prefs.bubble, Motion.scale(this))
+    }
+
+    /** New input view with the current look, set up again for the field that's open. */
+    private fun rebuild() {
+        setInputView(onCreateInputView())
+        currentInputEditorInfo?.let { if (isInputViewShown) configureFor(it) }
+    }
+
+    private var lastNight = -1
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // System light/dark flipped: follow it without a restart (other changes, like rotation, Android handles).
+        val night = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        if (night != lastNight) { lastNight = night; if (::panel.isInitialized) rebuild() }
+    }
+
+    /**
+     * With the letter bubble on, the panel has a transparent band above the keys. Tell Android where the
+     * keyboard really starts, so the app underneath isn't pushed up and stays tappable through the band.
+     */
+    override fun onComputeInsets(outInsets: Insets) {
+        super.onComputeInsets(outInsets)
+        if (!::panel.isInitialized || panel.extraTopPx == 0 || !panel.isShown) return
+        panel.getLocationInWindow(insetLoc)
+        val top = insetLoc[1] + panel.extraTopPx
+        outInsets.contentTopInsets = top
+        outInsets.visibleTopInsets = top
+        outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
+        outInsets.touchableRegion.set(0, top, panel.width, insetLoc[1] + panel.height)
     }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        configureFor(info)
+    }
+
+    private fun configureFor(info: EditorInfo) {
         val cls = info.inputType and InputType.TYPE_MASK_CLASS
         val variation = info.inputType and InputType.TYPE_MASK_VARIATION
         val password = isPassword(cls, variation)
@@ -97,29 +144,40 @@ class KeysService : InputMethodService(), KeyListener {
         learnOn = suggestOn && prefs.learn && !noSuggestFlag &&
             info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING == 0
         if (learnOn) worker.execute { userWords.load() }
+        soundOn = prefs.sound
+        vibrateOn = prefs.vibrate
+        applyLook()
 
         enterAction = info.imeOptions and EditorInfo.IME_MASK_ACTION
         val multiline = info.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0
         useEnterAction = !multiline && info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION == 0 &&
             enterAction != EditorInfo.IME_ACTION_NONE && enterAction != EditorInfo.IME_ACTION_UNSPECIFIED
 
-        keyboard.keyHeightDp = prefs.keyHeight
         keyboard.rows = if (numeric) Layouts.numpad else Layouts.letters
-        keyboard.enterLabel = if (useEnterAction) when (enterAction) {
-            EditorInfo.IME_ACTION_SEND -> "Send"
-            EditorInfo.IME_ACTION_GO -> "Go"
-            EditorInfo.IME_ACTION_SEARCH -> "Search"
+        keyboard.enterKind = if (!useEnterAction) EnterKind.RETURN else when (enterAction) {
+            EditorInfo.IME_ACTION_SEND -> EnterKind.SEND
+            EditorInfo.IME_ACTION_GO -> EnterKind.GO
+            EditorInfo.IME_ACTION_SEARCH -> EnterKind.SEARCH
+            EditorInfo.IME_ACTION_NEXT, EditorInfo.IME_ACTION_PREVIOUS, EditorInfo.IME_ACTION_DONE -> EnterKind.WORD
+            else -> EnterKind.RETURN
+        }
+        // Words, not icons, where an icon would be ambiguous.
+        keyboard.enterWord = when (enterAction) {
             EditorInfo.IME_ACTION_NEXT -> "Next"
             EditorInfo.IME_ACTION_PREVIOUS -> "Back"
             EditorInfo.IME_ACTION_DONE -> "Done"
-            else -> "Return"
-        } else "Return"
+            else -> ""
+        }
 
         composing.clear()
         undo = null
         strip.clear()
-        strip.visibility = if (suggestOn) View.VISIBLE else View.GONE
+        // The strip is always there (the keyboard never changes height). Private fields say so.
+        val noLearning = info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
+        strip.privateField = !numeric && !addressy && (password || noSuggestFlag || noLearning)
+        keyboard.fieldHasText = info.initialSelEnd > 0
         updateAutoCaps()
+        if (BuildConfig.TUNING) panel.post { Log.d(TAG, "input view height ${panel.height} px (class $cls, variation $variation)") }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
@@ -139,13 +197,14 @@ class KeysService : InputMethodService(), KeyListener {
         }
         if (newSelStart != newSelEnd) undo = null
         if (composing.isEmpty()) updateAutoCaps()
+        // Cursor past the start means there's text: the space bar wordmark dims.
+        if (::panel.isInitialized) keyboard.fieldHasText = newSelEnd > 0 || composing.isNotEmpty()
     }
 
     // ---- KeyListener ----
 
-    override fun onPressFeedback() {
-        if (prefs.vibrate) keyboard.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-        if (prefs.sound) (getSystemService(AUDIO_SERVICE) as AudioManager).playSoundEffect(AudioManager.FX_KEYPRESS_STANDARD, -1f)
+    override fun onPressFeedback(key: Key) {
+        if (soundOn || vibrateOn) feedback.press(keyboard, key, soundOn, vibrateOn)
     }
 
     override fun onKey(key: Key) {
@@ -164,7 +223,10 @@ class KeysService : InputMethodService(), KeyListener {
     }
 
     override fun onAlt(text: String) = typeChar(text)
-    override fun onDeleteRepeat() = delete()
+    override fun onDeleteRepeat() {
+        feedback.deleteRepeat(keyboard, vibrateOn)
+        delete()
+    }
     override fun onSpaceLongPress() {
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
     }
@@ -274,11 +336,11 @@ class KeysService : InputMethodService(), KeyListener {
             currentInputConnection?.finishComposingText()
             composing.clear()
         }
-        if (::strip.isInitialized) strip.clear()
+        if (::panel.isInitialized) strip.clear()
     }
 
     private fun updateAutoCaps() {
-        if (!::keyboard.isInitialized || keyboard.shift == Shift.LOCKED || numeric) return
+        if (!::panel.isInitialized || keyboard.shift == Shift.LOCKED || numeric) return
         val info = currentInputEditorInfo ?: return
         val caps = currentInputConnection?.getCursorCapsMode(info.inputType) ?: 0
         keyboard.shift = if (caps != 0) Shift.ONE else Shift.OFF
@@ -298,6 +360,7 @@ class KeysService : InputMethodService(), KeyListener {
         val learnNow = learnOn
         val correctNow = autocorrectOn
         worker.execute {
+            val started = System.nanoTime()
             val boost: (String) -> Int = { if (learnNow) userWords.boost(it) else 0 }
             val learned = if (learnNow) userWords.learned else emptyList()
             val known = { w: String -> d.isKnown(w) || (learnNow && userWords.isKnown(w)) }
@@ -315,6 +378,7 @@ class KeysService : InputMethodService(), KeyListener {
                 ranked.filter { it != typed }.take(3 - list.size).forEach { list += it }
                 highlight = if (list.firstOrNull() == typed) 0 else -1
             }
+            if (BuildConfig.TUNING) timeSuggestion(System.nanoTime() - started)
             main.post {
                 if (my != seq || composing.toString() != typed) return@post
                 autocorrectPick = pick
@@ -332,6 +396,19 @@ class KeysService : InputMethodService(), KeyListener {
         val known = { w: String -> d.isKnown(w) || (learnOn && userWords.isKnown(w)) }
         return d.autocorrect(original, known, { if (learnOn) userWords.boost(it) else 0 }, if (learnOn) userWords.learned else emptyList())
             ?.let { matchCase(original, it) }
+    }
+
+    /** Personal/debug builds: first suggestion after a cold start, and p95 of the work per keystroke. */
+    private fun timeSuggestion(nanos: Long) {
+        if (!firstSuggestionLogged) {
+            firstSuggestionLogged = true
+            Log.d(TAG, "first suggestion ${SystemClock.elapsedRealtime() - createdAt} ms after the service started")
+        }
+        suggestNanos[suggestCount % suggestNanos.size] = nanos
+        if (++suggestCount % suggestNanos.size == 0) {
+            val sorted = suggestNanos.sortedArray()
+            Log.d(TAG, "suggestion work p95 %.1f ms over the last %d keystrokes".format(sorted[(sorted.size * 95) / 100 - 1] / 1e6, sorted.size))
+        }
     }
 
     private fun learn(word: String) {
@@ -352,6 +429,8 @@ class KeysService : InputMethodService(), KeyListener {
         )) || (cls == InputType.TYPE_CLASS_NUMBER && variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD)
 
     override fun onDestroy() {
+        if (::prefs.isInitialized) prefs.unlisten(prefsChanged)
+        if (::feedback.isInitialized) feedback.release()
         if (::prefs.isInitialized && prefs.learn) userWords.save()
         worker.shutdown()
         super.onDestroy()

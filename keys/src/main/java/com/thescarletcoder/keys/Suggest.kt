@@ -105,8 +105,34 @@ class Dictionary private constructor(
         /** Only autocorrect to reasonably common words. */
         private const val MIN_FIX_FREQ = 50
 
-        fun load(context: Context): Dictionary = load(context.assets.open("en.dict"))
+        fun load(context: Context): Dictionary = loadBinary(context.assets.open("en.bin"))
 
+        /**
+         * en.bin (built from tools/dict/en.dict at compile time): "SKD1", count, then entries already in lookup order,
+         * each u8 length + lowercase UTF-8, u8 length + display form (0 = same as lowercase), u8 frequency, u8 flags.
+         * One buffered pass, no sorting.
+         */
+        fun loadBinary(input: java.io.InputStream): Dictionary = java.io.DataInputStream(java.io.BufferedInputStream(input, 1 shl 16)).use { d ->
+            val magic = ByteArray(4); d.readFully(magic)
+            require(String(magic, Charsets.US_ASCII) == "SKD1") { "not a Scarlet Keys dictionary" }
+            val n = d.readInt()
+            val lower = arrayOfNulls<String>(n); val display = arrayOfNulls<String>(n)
+            val freq = IntArray(n); val offensive = BooleanArray(n)
+            val buf = ByteArray(255)
+            for (i in 0 until n) {
+                val ll = d.readUnsignedByte(); d.readFully(buf, 0, ll)
+                val l = String(buf, 0, ll, Charsets.UTF_8)
+                lower[i] = l
+                val dl = d.readUnsignedByte()
+                display[i] = if (dl == 0) l else { d.readFully(buf, 0, dl); String(buf, 0, dl, Charsets.UTF_8) }
+                freq[i] = d.readUnsignedByte()
+                offensive[i] = d.readUnsignedByte() and 1 != 0
+            }
+            @Suppress("UNCHECKED_CAST")
+            Dictionary(lower as Array<String>, display as Array<String>, freq, offensive)
+        }
+
+        /** The text source (tools/dict/en.dict). Used by tests; the app ships the binary form. */
         fun load(input: java.io.InputStream): Dictionary {
             val l = ArrayList<String>(170_000); val d = ArrayList<String>(170_000)
             val f = ArrayList<Int>(170_000); val o = ArrayList<Boolean>(170_000)

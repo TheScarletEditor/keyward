@@ -1,8 +1,13 @@
 <resources>
     <color name="charcoal">#171614</color>
+    <color name="bone">#FAF9F6</color>
     <color name="icon_bg">#141110</color>
-    <style name="Theme.Keys" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/charcoal</item>
+    <!-- Light (bone). values-night has the charcoal version. The splash matches, with the raven, so launch never
+         flashes a stock circle. -->
+    <style name="Theme.Keys" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/bone</item>
+        <item name="android:windowSplashScreenBackground">@color/bone</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>

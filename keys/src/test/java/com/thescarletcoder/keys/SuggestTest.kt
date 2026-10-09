@@ -11,7 +11,7 @@ import java.io.File
 class SuggestTest {
     companion object {
         lateinit var dict: Dictionary
-        @BeforeClass @JvmStatic fun load() { dict = Dictionary.load(File("src/main/assets/en.dict").inputStream()) }
+        @BeforeClass @JvmStatic fun load() { dict = Dictionary.load(File("../tools/dict/en.dict").inputStream()) }
     }
 
     private fun fix(w: String) = dict.autocorrect(w, { dict.isKnown(it) }, { 0 }, emptyList())

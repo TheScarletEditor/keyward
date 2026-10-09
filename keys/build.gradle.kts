@@ -1,3 +1,5 @@
+import java.io.DataOutputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -19,16 +21,30 @@ android {
         applicationId = "com.thescarletcoder.keys"
         minSdk = 34
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.2.0"
+        buildConfigField("boolean", "TUNING", "false")
     }
 
     buildTypes {
-        debug { versionNameSuffix = "+$gitRev" }
+        debug {
+            versionNameSuffix = "+$gitRev"
+            buildConfigField("boolean", "TUNING", "true")
+        }
         release {
+            // Public releases only: signed with the release key by release.ps1.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        // Sam's own devices: release-optimized (R8, not debuggable) but signed with this laptop's debug key,
+        // so it installs over debug installs and keeps learned words. Never install `release` on her devices.
+        create("personal") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            versionNameSuffix = "+$gitRev"
+            buildConfigField("boolean", "TUNING", "true")
         }
     }
     compileOptions {
@@ -40,7 +56,7 @@ android {
         compose = true
         buildConfig = true
     }
-    androidResources { noCompress += "dict" }
+    androidResources { noCompress += "bin" }
 }
 
 dependencies {
@@ -50,6 +66,8 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
+    // Installs Compose's bundled baseline profiles for sideloaded builds (no Play cloud profiles).
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     testImplementation("junit:junit:4.13.2")
 }
 
@@ -65,3 +83,42 @@ tasks.matching { it.name.matches(Regex("process[A-Za-z]+MainManifest")) }.config
         }
     }
 }
+
+// The word list ships as en.bin, built here from tools/dict/en.dict (the source, kept as text).
+// Format (tools/dict/README.md): "SKD1", entry count, then entries sorted by lowercase word (ties: most frequent first).
+abstract class BuildDict : DefaultTask() {
+    @get:InputFile abstract val source: RegularFileProperty
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+
+    @TaskAction fun run() {
+        class E(val lower: String, val display: String, val freq: Int, val offensive: Boolean)
+        val entries = source.get().asFile.readLines().mapNotNull { line ->
+            val p = line.split('\t')
+            if (p.size < 2) null else E(p[0].lowercase(), p[0], (p[1].toIntOrNull() ?: 0).coerceIn(0, 255), p.getOrNull(2) == "o")
+        }.sortedWith(compareBy<E>({ it.lower }, { -it.freq }))
+        val out = outputDir.get().file("en.bin").asFile
+        out.parentFile.mkdirs()
+        DataOutputStream(out.outputStream().buffered()).use { o ->
+            o.writeBytes("SKD1")
+            o.writeInt(entries.size)
+            entries.forEach { e ->
+                val l = e.lower.toByteArray(Charsets.UTF_8)
+                require(l.size in 1..255) { "word too long: ${e.lower}" }
+                o.writeByte(l.size); o.write(l)
+                if (e.display == e.lower) o.writeByte(0)
+                else { val d = e.display.toByteArray(Charsets.UTF_8); o.writeByte(d.size); o.write(d) }
+                o.writeByte(e.freq)
+                o.writeByte(if (e.offensive) 1 else 0)
+            }
+        }
+    }
+}
+
+val buildDict = tasks.register<BuildDict>("buildDict") {
+    source.set(rootProject.file("tools/dict/en.dict"))
+    outputDir.set(layout.buildDirectory.dir("generated/dict"))
+}
+androidComponents {
+    onVariants { v -> v.sources.assets?.addGeneratedSourceDirectory(buildDict, BuildDict::outputDir) }
+}
+tasks.withType<Test>().configureEach { dependsOn(buildDict) }

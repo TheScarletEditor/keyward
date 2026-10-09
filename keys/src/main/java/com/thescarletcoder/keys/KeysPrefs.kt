@@ -32,6 +32,24 @@ class KeysPrefs(private val context: Context) {
         get() = p.getBoolean("learn", false)
         set(v) = p.edit().putBoolean("learn", v).apply()
 
+    /** System / Dark / Light. */
+    var theme: com.thescarletcoder.scarlet.ThemeChoice
+        get() = com.thescarletcoder.scarlet.ScarletTokens.parseChoice(p.getString("theme", null))
+        set(v) = p.edit().putString("theme", v.name).apply()
+
+    /** "Show the letter above your finger": on by default on phone-width screens, never on the tablet. */
+    var bubble: Boolean
+        get() = Compact.isCompact(context) && p.getBoolean("bubble", true)
+        set(v) = p.edit().putBoolean("bubble", v).apply()
+
+    /** The set-up section has collapsed to "Ready" once already (its glide-in plays only the first time). */
+    var readyShown: Boolean
+        get() = p.getBoolean("ready_shown", false)
+        set(v) = p.edit().putBoolean("ready_shown", v).apply()
+
+    fun listen(l: SharedPreferences.OnSharedPreferenceChangeListener) = p.registerOnSharedPreferenceChangeListener(l)
+    fun unlisten(l: SharedPreferences.OnSharedPreferenceChangeListener) = p.unregisterOnSharedPreferenceChangeListener(l)
+
     /** Key height in dp. Until Sam picks one: 64 on the tablet, 50 on a phone-width screen. */
     var keyHeight: Int
         get() = p.getInt("key_height", if (Compact.isCompact(context)) 50 else 64)

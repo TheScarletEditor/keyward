@@ -1,12 +1,22 @@
 package com.thescarletcoder.keys
 
 import android.content.Intent
+import android.graphics.Color.TRANSPARENT
 import android.os.Bundle
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,16 +29,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,34 +45,66 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
-
-private val Bg = Color(0xFF171614)
-private val Surface = Color(0xFF211F1C)
-private val Line = Color(0x1FFAF9F6)
-private val Bone = Color(0xFFFAF9F6)
-private val Soft = Color(0xFF908E86)
-private val Teal = Color(0xFF5E9B8C)
-private val ScarletSoft = Color(0x73E20514)
-private val ScarletWash = Color(0x24E20514)
+import com.thescarletcoder.scarlet.Motion
+import com.thescarletcoder.scarlet.ScarletField
+import com.thescarletcoder.scarlet.ScarletPalette
+import com.thescarletcoder.scarlet.ScarletSwitch
+import com.thescarletcoder.scarlet.ScarletTokens
+import com.thescarletcoder.scarlet.ThemeChoice
+import com.thescarletcoder.scarlet.TuningPanel
+import com.thescarletcoder.scarlet.Tunables
 
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         val prefs = KeysPrefs(this)
+        KeysTuning.init(this)
         val words = UserWords(this).also { it.load() }
         val inter = FontFamily(Font(R.font.inter_regular, FontWeight.Normal), Font(R.font.inter_medium, FontWeight.Medium))
+        val fraunces = FontFamily(Font(R.font.fraunces_display))
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(background = Bg, surface = Surface, primary = Teal)) {
+            var choice by remember { mutableStateOf(prefs.theme) }
+            val uiMode = LocalConfiguration.current.uiMode // the system flipping light/dark recomposes this
+            val p = remember(choice, uiMode) { ScarletTokens.resolve(choice) }
+            LaunchedEffect(p.dark) {
+                val bars = if (p.dark) SystemBarStyle.dark(TRANSPARENT) else SystemBarStyle.light(TRANSPARENT, TRANSPARENT)
+                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+            }
+            var tuning by remember { mutableStateOf(false) }
+            BackHandler(enabled = tuning) { tuning = false }
+
+            Column(
+                Modifier.fillMaxSize().background(Color(p.bg)).safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                if (tuning) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tuning", color = Color(p.text), fontSize = 30.sp, fontFamily = fraunces, modifier = Modifier.weight(1f))
+                        Pill("Back", false, p, inter) { tuning = false }
+                    }
+                    TuningPanel(p, inter)
+                    return@Column
+                }
+
+                Header(p, fraunces, inter)
+
                 var tick by remember { mutableIntStateOf(0) }
                 val lifecycle = LocalLifecycleOwner.current.lifecycle
                 LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { tick++ } }
@@ -76,64 +113,73 @@ class SettingsActivity : ComponentActivity() {
                 val enabled = imm.enabledInputMethodList.any { it.packageName == packageName }
                 val current = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD).orEmpty().startsWith(packageName)
 
-                Column(
-                    Modifier.fillMaxSize().background(Bg).safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                ) {
-                    Text("Scarlet Keys", color = Bone, fontSize = 34.sp, fontFamily = inter, fontWeight = FontWeight.Medium)
-                    Text(
-                        "Your keyboard. No internet access, nothing typed is ever logged or sent anywhere.",
-                        color = Soft, fontSize = 16.sp, fontFamily = inter,
-                    )
-
-                    Section("Set up", inter) {
-                        Step(1, "Turn on Scarlet Keys", if (enabled) "On" else "Not on yet", enabled, inter) {
+                Section("Set up", p, inter) {
+                    if (enabled && current) Ready(p, inter, firstTime = !prefs.readyShown) { prefs.readyShown = true }
+                    else {
+                        Step(1, "Turn on Scarlet Keys", if (enabled) "On" else "Not on yet", enabled, p, inter) {
                             startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
                         }
-                        Step(2, "Switch to Scarlet Keys", if (current) "In use" else "Not in use", current, inter) {
+                        Step(2, "Switch to Scarlet Keys", if (current) "In use" else "Not in use", current, p, inter) {
                             imm.showInputMethodPicker()
                         }
-                        Text("Tip: hold the space bar any time to switch keyboards.", color = Soft, fontSize = 14.sp, fontFamily = inter)
                     }
+                    Text("Tip: hold the space bar any time to switch keyboards.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)
+                }
 
-                    Section("Typing", inter) {
-                        Toggle("Suggestions", "Word suggestions above the keys.", prefs.suggestions, inter) { prefs.suggestions = it }
-                        Toggle("Autocorrect", "Fixes clear typos when you press space. Backspace right after puts your word back.", prefs.autocorrect, inter) { prefs.autocorrect = it }
-                        var learn by remember { mutableStateOf(prefs.learn) }
-                        Toggle(
-                            "Learn my words",
-                            "Remembers words you use so it stops correcting them. Single words only, encrypted on this device. Never from password fields or fields an app marks as private, like incognito tabs.",
-                            learn, inter,
-                        ) { prefs.learn = it; learn = it }
-                        var count by remember { mutableIntStateOf(words.count) }
-                        if (count > 0) {
-                            Button("Forget learned words ($count)", inter) { words.clear(); count = 0 }
-                        }
-                    }
+                Section("Typing", p, inter) {
+                    Toggle("Suggestions", "Word suggestions above the keys.", prefs.suggestions, p, inter) { prefs.suggestions = it }
+                    Toggle("Autocorrect", "Fixes clear typos when you press space. Backspace right after puts your word back.", prefs.autocorrect, p, inter) { prefs.autocorrect = it }
+                    Toggle(
+                        "Learn my words",
+                        "Remembers words you use so it stops correcting them. Single words only, encrypted on this device. Never from password fields or fields an app marks as private, like incognito tabs.",
+                        prefs.learn, p, inter,
+                    ) { prefs.learn = it }
+                    var count by remember { mutableIntStateOf(words.count) }
+                    if (count > 0) Pill("Forget learned words ($count)", false, p, inter) { words.clear(); count = 0 }
+                }
 
-                    Section("Feel", inter) {
-                        Toggle("Key sound", null, prefs.sound, inter) { prefs.sound = it }
-                        Toggle("Key vibration", null, prefs.vibrate, inter) { prefs.vibrate = it }
-                        var h by remember { mutableIntStateOf(prefs.keyHeight) }
-                        Text("Key height", color = Bone, fontSize = 18.sp, fontFamily = inter)
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            (if (Compact.isCompact(this@SettingsActivity)) listOf(44 to "Small", 50 to "Medium", 58 to "Large")
-                            else listOf(56 to "Small", 64 to "Medium", 76 to "Large")).forEach { (dp, name) ->
-                                Chip(name, h == dp, inter) { h = dp; prefs.keyHeight = dp }
+                Section("Feel", p, inter) {
+                    Text("Theme", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        listOf(ThemeChoice.SYSTEM to "System", ThemeChoice.DARK to "Dark", ThemeChoice.LIGHT to "Light").forEach { (c, name) ->
+                            Pill(name, choice == c, p, inter) {
+                                choice = c; prefs.theme = c
+                                ScarletTokens.applyToSystem(this@SettingsActivity, c)
                             }
                         }
                     }
+                    Toggle("Key sound", null, prefs.sound, p, inter) { prefs.sound = it }
+                    Toggle("Key vibration", null, prefs.vibrate, p, inter) { prefs.vibrate = it }
+                    var h by remember { mutableIntStateOf(prefs.keyHeight) }
+                    Text("Key height", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
+                    val compact = Compact.isCompact(this@SettingsActivity)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        (if (compact) listOf(44 to "Small", 50 to "Medium", 58 to "Large") else listOf(56 to "Small", 64 to "Medium", 76 to "Large"))
+                            .forEach { (dp, name) -> Pill(name, h == dp, p, inter) { h = dp; prefs.keyHeight = dp } }
+                    }
+                    var bubble by remember { mutableStateOf(prefs.bubble) }
+                    if (compact) Toggle("Show the letter above your finger", "A bubble with the letter you're pressing, above your thumb.", bubble, p, inter) {
+                        prefs.bubble = it; bubble = it
+                    }
+                    Preview(p, h, bubble && compact)
+                }
 
-                    Section("Try it", inter) {
-                        var t by remember { mutableStateOf("") }
-                        OutlinedTextField(
-                            value = t, onValueChange = { t = it }, modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Type here to test", color = Soft) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Bone, unfocusedTextColor = Bone, cursorColor = Bone,
-                                focusedBorderColor = ScarletSoft, unfocusedBorderColor = Line,
-                            ),
-                        )
+                Section("Try it", p, inter) {
+                    var t by remember { mutableStateOf("") }
+                    ScarletField(t, { t = it }, "Type here to test", p, inter)
+                }
+
+                if (BuildConfig.TUNING) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(p.surface))
+                            .border(1.dp, Color(p.line), RoundedCornerShape(16.dp)).clickable { tuning = true }.padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Tuning", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
+                            Text("Feel values for this build. Not in public releases.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)
+                        }
+                        Text("Open", color = Color(p.soft), fontSize = 15.sp, fontFamily = inter)
                     }
                 }
             }
@@ -141,65 +187,117 @@ class SettingsActivity : ComponentActivity() {
     }
 }
 
+/** The raven with a soft scarlet halo, then the name in Fraunces. */
 @Composable
-private fun Section(title: String, font: FontFamily, content: @Composable () -> Unit) {
+private fun Header(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.size(112.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(84.dp)) { drawCircle(Color(p.scarlet).copy(alpha = 0.14f)) }
+            Image(painterResource(R.mipmap.ic_launcher_foreground), contentDescription = null, modifier = Modifier.size(112.dp))
+        }
+        Text("Scarlet Keys", color = Color(p.text), fontSize = 36.sp, fontFamily = fraunces)
+        Text("Your keyboard. No internet access, nothing typed is ever logged or sent anywhere.",
+            color = Color(p.soft), fontSize = 16.sp, fontFamily = inter)
+    }
+}
+
+/** Both set-up steps done: one line. The first time, it glides in (LUX). */
+@Composable
+private fun Ready(p: ScarletPalette, inter: FontFamily, firstTime: Boolean, onShown: () -> Unit) {
+    val ms = Motion.duration(LocalContext.current, Motion.LUX_MS)
+    val state = remember { MutableTransitionState(!firstTime).apply { targetState = true } }
+    LaunchedEffect(Unit) { if (firstTime) onShown() }
+    AnimatedVisibility(
+        visibleState = state,
+        enter = fadeIn(tween(ms, easing = Motion.LUX_EASE)) + slideInVertically(tween(ms, easing = Motion.LUX_EASE)) { it / 2 },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Check(Color(p.teal))
+            Text("Ready. Scarlet Keys is on and in use.", color = Color(p.text), fontSize = 17.sp, fontFamily = inter)
+        }
+    }
+}
+
+@Composable
+private fun Check(color: Color) {
+    Canvas(Modifier.size(22.dp)) {
+        val s = size.width / 24f
+        val path = Path().apply { moveTo(5f * s, 12.5f * s); lineTo(10f * s, 17.5f * s); lineTo(19f * s, 7f * s) }
+        drawPath(path, color, style = Stroke(width = 2.2f * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+/** A real keyboard that redraws as theme, key height, depth and bubble settings change. Types nowhere. */
+@Composable
+private fun Preview(p: ScarletPalette, keyHeight: Int, bubble: Boolean) {
+    val context = LocalContext.current
+    @Suppress("UNUSED_VARIABLE") val tuned = Tunables.version.intValue
+    AndroidView(
+        factory = { ctx ->
+            KeyboardPanel(ctx, NoKeys, {}).also { it.strip.show(listOf("Scarlet", "Keys", "keyboard"), 1) }
+        },
+        update = { panel ->
+            panel.apply(KeyColors(p), keyHeight, bubble, Motion.scale(context))
+            panel.keyboard.invalidate()
+        },
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+    )
+}
+
+private object NoKeys : KeyListener {
+    override fun onPressFeedback(key: Key) = Unit
+    override fun onKey(key: Key) = Unit
+    override fun onAlt(text: String) = Unit
+    override fun onDeleteRepeat() = Unit
+    override fun onSpaceLongPress() = Unit
+}
+
+@Composable
+private fun Section(title: String, p: ScarletPalette, font: FontFamily, content: @Composable () -> Unit) {
     val shape = RoundedCornerShape(16.dp)
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(Surface).border(1.dp, Line, shape).padding(18.dp),
+        Modifier.fillMaxWidth().clip(shape).background(Color(p.surface)).border(1.dp, Color(p.line), shape).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(title, color = Soft, fontSize = 15.sp, fontFamily = font, fontWeight = FontWeight.Medium)
+        Text(title, color = Color(p.soft), fontSize = 15.sp, fontFamily = font, fontWeight = FontWeight.Medium)
         content()
     }
 }
 
 @Composable
-private fun Step(n: Int, title: String, status: String, done: Boolean, font: FontFamily, onClick: () -> Unit) {
+private fun Step(n: Int, title: String, status: String, done: Boolean, p: ScarletPalette, font: FontFamily, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
     Row(
-        Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(8.dp),
+        Modifier.fillMaxWidth().clip(shape).background(Color(if (done) p.raised else p.scarletWash))
+            .border(1.dp, Color(if (done) p.line else p.scarletEdge), shape).clickable(onClick = onClick).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("$n.  $title", color = Bone, fontSize = 18.sp, fontFamily = font, modifier = Modifier.weight(1f))
-        Text(status, color = if (done) Teal else Soft, fontSize = 15.sp, fontFamily = font, fontWeight = FontWeight.Medium)
+        Text("$n", color = Color(p.soft), fontSize = 18.sp, fontFamily = font, modifier = Modifier.padding(end = 14.dp))
+        Text(title, color = Color(p.text), fontSize = 18.sp, fontFamily = font, modifier = Modifier.weight(1f))
+        Text(status, color = Color(if (done) p.teal else p.soft), fontSize = 15.sp, fontFamily = font)
     }
 }
 
 @Composable
-private fun Toggle(title: String, detail: String?, initial: Boolean, font: FontFamily, onChange: (Boolean) -> Unit) {
+private fun Toggle(title: String, note: String?, initial: Boolean, p: ScarletPalette, font: FontFamily, onChange: (Boolean) -> Unit) {
     var on by remember { mutableStateOf(initial) }
-    Row(
-        Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).clickable { on = !on; onChange(on) },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Row(Modifier.fillMaxWidth().clickable { on = !on; onChange(on) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(title, color = Bone, fontSize = 18.sp, fontFamily = font)
-            if (detail != null) Text(detail, color = Soft, fontSize = 14.sp, fontFamily = font)
+            Text(title, color = Color(p.text), fontSize = 18.sp, fontFamily = font)
+            note?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = font) }
         }
-        Switch(
-            checked = on, onCheckedChange = { on = it; onChange(it) },
-            colors = SwitchDefaults.colors(checkedThumbColor = Bone, checkedTrackColor = Teal, uncheckedThumbColor = Soft, uncheckedTrackColor = Bg, uncheckedBorderColor = Line),
-        )
+        ScarletSwitch(on, { on = it; onChange(it) }, p)
     }
 }
 
 @Composable
-private fun Chip(text: String, selected: Boolean, font: FontFamily, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(28.dp)
+private fun Pill(label: String, selected: Boolean, p: ScarletPalette, font: FontFamily, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(24.dp)
     Box(
-        Modifier.defaultMinSize(minWidth = 88.dp, minHeight = 56.dp).clip(shape)
-            .background(if (selected) Teal.copy(alpha = 0.22f) else Bg)
-            .border(1.dp, if (selected) Teal.copy(alpha = 0.7f) else Line, shape)
-            .clickable(onClick = onClick).padding(horizontal = 18.dp),
+        Modifier.defaultMinSize(minHeight = 48.dp).clip(shape)
+            .background(Color(if (selected) p.tealWash else p.raised))
+            .border(1.dp, Color(if (selected) p.tealEdge else p.line), shape)
+            .clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(text, color = if (selected) Bone else Soft, fontSize = 16.sp, fontFamily = font) }
-}
-
-@Composable
-private fun Button(text: String, font: FontFamily, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(16.dp)
-    Box(
-        Modifier.defaultMinSize(minHeight = 56.dp).clip(shape).background(ScarletWash).border(1.dp, ScarletSoft, shape)
-            .clickable(onClick = onClick).padding(horizontal = 20.dp),
-        contentAlignment = Alignment.Center,
-    ) { Text(text, color = Bone, fontSize = 16.sp, fontFamily = font, fontWeight = FontWeight.Medium) }
+    ) { Text(label, color = Color(p.text), fontSize = 16.sp, fontFamily = font, fontWeight = FontWeight.Medium) }
 }

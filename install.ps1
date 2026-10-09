@@ -23,6 +23,6 @@ cmd /c ".\gradlew.bat :keys:assembleDebug --console=plain -q"
 if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
 
 Write-Host "Installing..."
-& $adb -s $Serial install -r ".${app}\build\outputs\apk\debug${app}-debug.apk"
+& $adb -s $Serial install -r ".\keys\build\outputs\apk\debug\keys-debug.apk"
 if ($LASTEXITCODE -ne 0) { Write-Host "Install failed."; exit 1 }
 Write-Host "Done. Scarlet Keys is installed."

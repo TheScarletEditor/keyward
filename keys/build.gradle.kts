@@ -4,6 +4,13 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// The commit this build came from (e.g. 0.1.0+712d74c, "-dirty" with uncommitted changes), so versions.ps1 can spot drift.
+val gitRev: String = runCatching {
+    fun git(vararg a: String) = ProcessBuilder("git", *a).directory(rootDir).start().inputStream.bufferedReader().readText().trim()
+    val h = git("rev-parse", "--short", "HEAD")
+    if (h.isEmpty()) "nogit" else h + if (git("status", "--porcelain").isNotEmpty()) "-dirty" else ""
+}.getOrDefault("nogit")
+
 android {
     namespace = "com.thescarletcoder.keys"
     compileSdk = 36
@@ -17,6 +24,7 @@ android {
     }
 
     buildTypes {
+        debug { versionNameSuffix = "+$gitRev" }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

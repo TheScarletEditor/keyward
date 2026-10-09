@@ -54,6 +54,16 @@ class KeyOverlay(context: Context) : View(context), KeyPopups {
         isFocusable = false
     }
 
+    /**
+     * Never ask for height of its own. A plain View takes all the height it's offered, which made the keyboard
+     * window as tall as the screen with the keys at the top (Sam, 2026-10-09). The panel's second measure pass
+     * then gives this overlay exactly the keyboard's height.
+     */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val h = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY) MeasureSpec.getSize(heightMeasureSpec) else 0
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), h)
+    }
+
     override fun bubbleDown(key: RectF, label: String) {
         val h = Tunables[KeysTuning.BUBBLE_H_DP] * density
         val bottom = offsetY + key.top - 6 * density

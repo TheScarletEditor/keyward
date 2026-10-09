@@ -58,14 +58,18 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        val h = (rows.size * keyHeightDp * density + (rows.size - 1) * gap + 2 * pad).toInt()
+        val wanted = (rows.size * keyHeightDp * density + (rows.size - 1) * gap + 2 * pad).toInt()
+        // Android caps the keyboard window's height (in landscape on the tablet it is less than the chosen key
+        // height needs). Take what is offered and shrink the keys in onLayout, so the bottom row never gets cut off.
+        val h = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) wanted
+            else minOf(wanted, MeasureSpec.getSize(heightMeasureSpec))
         setMeasuredDimension(w, h)
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
         rects.clear()
-        val keyH = keyHeightDp * density
+        val keyH = minOf(keyHeightDp * density, (height - 2 * pad - (rows.size - 1) * gap) / rows.size)
         val usable = width - 2 * pad
         rows.forEachIndexed { r, row ->
             val total = row.sumOf { it.weight.toDouble() }.toFloat()

@@ -11,3 +11,6 @@ captures/
 .idea/
 *.iml
 __pycache__/
+
+# Signed release APKs (published on GitHub Releases, not in git)
+dist/

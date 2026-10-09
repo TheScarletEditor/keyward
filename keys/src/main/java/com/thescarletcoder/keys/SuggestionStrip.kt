@@ -40,7 +40,8 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
     private val inter = ResourcesCompat.getFont(context, R.font.inter_regular) ?: Typeface.DEFAULT
     private val interMedium = ResourcesCompat.getFont(context, R.font.inter_medium) ?: Typeface.DEFAULT
     private val size = Compact.sizes(context)
-    private val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = size.stripText * density }
+    // Not `density` inside apply: TextPaint has its own density field (1.0), which made suggestions a third of their size.
+    private val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = size.stripText * this@SuggestionStrip.density }
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val divider = Paint().apply { strokeWidth = 1 * density }
     private val pill = RectF()

@@ -102,7 +102,7 @@ class SettingsActivity : ComponentActivity() {
                         var learn by remember { mutableStateOf(prefs.learn) }
                         Toggle(
                             "Learn my words",
-                            "Remembers words you use so it stops correcting them. Single words only, encrypted on this tablet. Never from password fields or Scarlet Command's private screens.",
+                            "Remembers words you use so it stops correcting them. Single words only, encrypted on this device. Never from password fields or fields an app marks as private, like incognito tabs.",
                             learn, inter,
                         ) { prefs.learn = it; learn = it }
                         var count by remember { mutableIntStateOf(words.count) }

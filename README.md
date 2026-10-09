@@ -23,3 +23,9 @@ Then turn it on in Android's keyboard settings.
 
 - Word list: derived from the Android Open Source Project LatinIME dictionaries (Apache 2.0). See `keys/src/main/assets/DICTIONARY-NOTICE.txt` and `tools/dict/README.md`.
 - Font: Inter, SIL Open Font License 1.1 (`licenses/Inter-OFL.txt`).
+
+## License
+
+Scarlet Keys is free software: you can use it, study it, change it and share it under the [GNU General Public License v3.0](LICENSE). If you share a changed version, it has to stay open under the same license.
+
+Copyright (C) 2026 The Scarlet Coder. Fonts and the word list keep their own licenses, listed under Credits.

@@ -1,0 +1,9 @@
+<resources>
+    <color name="charcoal">#171614</color>
+    <color name="icon_bg">#141110</color>
+    <style name="Theme.Keys" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/charcoal</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

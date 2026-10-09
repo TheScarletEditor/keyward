@@ -1,0 +1,4 @@
+English word list: derived from the Android Open Source Project LatinIME dictionaries
+(platform/packages/inputmethods/LatinIME, dictionaries/en_wordlist.combined.gz),
+Copyright The Android Open Source Project, licensed under the Apache License, Version 2.0.
+Filtered to plain words with frequencies by tools/dict (Scarlet Keys, 2026-10-07).

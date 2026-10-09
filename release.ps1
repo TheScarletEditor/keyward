@@ -1,5 +1,6 @@
 # Build the release APK and sign it with The Scarlet Coder's app key.
-# apksigner asks for the key password; type it here. It is never stored or passed on the command line.
+# Asks for the key password (hidden). It goes to apksigner through an environment variable that only
+# this script's process can see, and is cleared right after. Never stored, never on the command line.
 #
 # Run:
 #   powershell -ExecutionPolicy Bypass -File .\release.ps1
@@ -21,9 +22,15 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
 
 New-Item -ItemType Directory -Force dist | Out-Null
 $out = ".\dist\scarlet-keys-$version.apk"
-Write-Host "Signing. Type the key password when asked."
-& $apksigner sign --ks $keystore --ks-key-alias $alias --out $out ".\keys\build\outputs\apk\release\keys-release-unsigned.apk"
-if ($LASTEXITCODE -ne 0) { Write-Host "Signing failed."; exit 1 }
+$secure = Read-Host "Key password" -AsSecureString
+$env:SCARLET_KS_PASS = [System.Net.NetworkCredential]::new('', $secure).Password
+try {
+    & $apksigner sign --ks $keystore --ks-key-alias $alias --ks-pass env:SCARLET_KS_PASS --out $out ".\keys\build\outputs\apk\release\keys-release-unsigned.apk"
+    $signed = $LASTEXITCODE -eq 0
+} finally {
+    Remove-Item Env:SCARLET_KS_PASS -ErrorAction SilentlyContinue
+}
+if (-not $signed) { Write-Host "Signing failed. Wrong password?"; exit 1 }
 Remove-Item "$out.idsig" -ErrorAction SilentlyContinue
 
 & $apksigner verify --print-certs $out | Select-String 'SHA-256'

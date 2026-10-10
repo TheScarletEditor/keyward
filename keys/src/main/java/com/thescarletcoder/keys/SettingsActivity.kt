@@ -75,7 +75,7 @@ class SettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val prefs = KeysPrefs(this)
         KeysTuning.init(this)
-        val words = UserWords(this).also { it.load() }
+        val words = UserWords.get(this).also { it.load() }
         val inter = FontFamily(Font(R.font.inter_regular, FontWeight.Normal), Font(R.font.inter_medium, FontWeight.Medium))
         val fraunces = FontFamily(Font(R.font.fraunces_display))
 

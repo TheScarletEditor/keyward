@@ -5,7 +5,7 @@ import kotlin.math.abs
 import kotlin.math.min
 
 /**
- * Offline dictionary (assets/en.dict, from AOSP LatinIME, Apache 2.0) plus a keyboard-aware corrector.
+ * Offline dictionary (assets/en.bin, built from tools/dict/en.dict: AOSP LatinIME, Apache 2.0) plus a keyboard-aware corrector.
  * Everything runs on the tablet. Nothing typed is stored here; learned words live in [UserWords].
  */
 class Dictionary private constructor(
@@ -89,12 +89,19 @@ class Dictionary private constructor(
         return out.values.sortedByDescending { it.score }
     }
 
-    /** Correction to apply when the word ends, or null to leave it alone. Gentle on purpose. */
-    fun autocorrect(typed: String, known: (String) -> Boolean, userBoost: (String) -> Int, userWords: Collection<String>): String? {
+    /**
+     * Correction to apply when the word ends, or null to leave it alone. Gentle on purpose.
+     * [ranked]: this word's [candidates] if the caller already has them (the keyboard does, for the strip), so the
+     * dictionary is searched once per keystroke, not twice.
+     */
+    fun autocorrect(
+        typed: String, known: (String) -> Boolean, userBoost: (String) -> Int, userWords: Collection<String>,
+        ranked: List<Candidate>? = null,
+    ): String? {
         val t = typed.lowercase()
         if (t.length < 2 || known(t)) return null
         if (t.any { !it.isLetter() && it != '\'' }) return null
-        val best = candidates(t, userBoost, userWords).firstOrNull { it.distance > 0f } ?: return null
+        val best = (ranked ?: candidates(t, userBoost, userWords)).firstOrNull { it.distance > 0f } ?: return null
         val limit = if (letters(t).length <= 4) 1.0f else 2.0f
         return if (best.distance <= limit && best.freq >= MIN_FIX_FREQ) best.word else null
     }

@@ -38,6 +38,14 @@ class SuggestTest {
         assertNull(dict.autocorrect("zorbex", { dict.isKnown(it) || it in learned }, { 0 }, learned))
     }
 
+    @Test fun sharedCandidatesGiveTheSameFix() {
+        // The keyboard hands autocorrect the candidates it already found for the strip; the answer must not change.
+        listOf("teh", "helo", "becuase", "dont", "tomorow", "the", "zorbex", "wierd").forEach { w ->
+            val ranked = dict.candidates(w, { 0 }, emptyList())
+            assertEquals(w, fix(w), dict.autocorrect(w, { dict.isKnown(it) }, { 0 }, emptyList(), ranked))
+        }
+    }
+
     @Test fun fastEnoughPerKeystroke() {
         val words = listOf("becuase", "tomorow", "recieve", "seperate", "definately", "accomodate", "wierd", "goverment")
         val t0 = System.nanoTime()

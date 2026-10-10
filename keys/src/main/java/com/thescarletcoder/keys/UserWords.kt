@@ -16,8 +16,10 @@ import javax.crypto.spec.GCMParameterSpec
  * Only words, with a use count: never sentences, never where they were typed.
  * Encrypted at rest with an Android Keystore key (AES-GCM). Only available after the tablet is unlocked.
  * The service never records in password fields or fields that ask for no personalized learning.
+ * One instance per process ([get]), so "Forget learned words" in Settings also empties the keyboard's copy in memory
+ * (with two copies, the keyboard's next save wrote every forgotten word back).
  */
-class UserWords(private val context: Context) {
+class UserWords private constructor(private val context: Context) {
     private val counts = HashMap<String, Int>()
     private var dirty = false
     private var loaded = false
@@ -98,5 +100,12 @@ class UserWords(private val context: Context) {
         return g.generateKey()
     }
 
-    private companion object { const val ALIAS = "keys_user_words_v1" }
+    companion object {
+        private const val ALIAS = "keys_user_words_v1"
+        @Volatile private var instance: UserWords? = null
+
+        fun get(context: Context): UserWords = instance ?: synchronized(this) {
+            instance ?: UserWords(context.applicationContext).also { instance = it }
+        }
+    }
 }

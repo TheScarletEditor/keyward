@@ -8,9 +8,7 @@ data class Key(
     val type: KeyType = KeyType.CHAR,
     val weight: Float = 1f,
     val alt: String? = null,
-) {
-    val text: String get() = label
-}
+)
 
 /** Standard layouts. Sam tweaks from here (docs/KEYS-SPEC.md). */
 object Layouts {

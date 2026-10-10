@@ -81,7 +81,7 @@ class KeysService : InputMethodService(), KeyListener {
         createdAt = SystemClock.elapsedRealtime()
         prefs = KeysPrefs(this)
         KeysTuning.init(this)
-        userWords = UserWords(this)
+        userWords = UserWords.get(this)
         feedback = Feedback(this)
         prefs.listen(prefsChanged)
         worker.execute {
@@ -429,8 +429,9 @@ class KeysService : InputMethodService(), KeyListener {
             val boost: (String) -> Int = { if (learnNow) userWords.boost(it) else 0 }
             val learned = if (learnNow) userWords.learned else emptyList()
             val known = { w: String -> d.isKnown(w) || (learnNow && userWords.isKnown(w)) }
-            val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned)?.let { matchCase(typed, it) } else null
-            val ranked = d.candidates(typed, boost, learned).map { matchCase(typed, it.word) }.distinct()
+            val cands = d.candidates(typed, boost, learned)
+            val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned, cands)?.let { matchCase(typed, it) } else null
+            val ranked = cands.map { matchCase(typed, it.word) }.distinct()
             val list = ArrayList<String>(3)
             val highlight: Int
             if (pick != null) {

@@ -46,6 +46,16 @@ android {
             versionNameSuffix = "+$gitRev"
             buildConfigField("boolean", "TUNING", "true")
         }
+        // The smoke copy ("Keys Smoke"): release-optimized exactly like the public build, but with its own app id
+        // and the debug key, so it installs next to the installed Keys without touching it. Driven over adb by smoke.ps1
+        // during /finalize, then uninstalled.
+        create("smoke") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            applicationIdSuffix = ".smoke"
+            versionNameSuffix = "-smoke+$gitRev"
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

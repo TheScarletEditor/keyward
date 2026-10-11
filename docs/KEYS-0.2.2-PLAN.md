@@ -1,8 +1,8 @@
 # Scarlet Keys 0.2.2 plan
 
-Status: **waiting for the owner's answers and go.** Nothing here is built. Prepared 2026-10-11 with /prep (resume mode) from the cross-app pattern check (Command `docs/BUILD-PATTERNS-2026-10.md`, "Keys hits"). Every finding below was checked against the code at `80aa720` before it went in.
+Status: **answers recorded 2026-10-11; ready to start with slice 1, waiting for the owner's go.** Nothing here is built. Prepared 2026-10-11 with /prep (resume mode) from the cross-app pattern check (Command `docs/BUILD-PATTERNS-2026-10.md`, "Keys hits"). Every finding below was checked against the code at `80aa720` before it went in.
 
-Anything marked **proposed** is Claude's suggestion, not a decision, until the owner confirms it.
+Everything below was proposed by Claude and confirmed by the owner on 2026-10-11 (Q1 to Q4), so it is **decided**.
 
 ## Where things stand
 
@@ -35,31 +35,31 @@ Run 2026-10-11 at `80aa720` (`:keys:assembleDebug :keys:testDebugUnitTest :keys:
 
 Not brought in: K2 (fixed in 0.2.1) and K8 (speed and size; answered by this plan's small slices and the tests in each).
 
-## What can go wrong (draft, **proposed**)
+## What can go wrong (**decided**, Q2 and Q4)
 
-For the learned-words store and Forget. Each line becomes a check in slice 2 or 3 once the owner confirms it.
+For the learned-words store and Forget. Each line becomes a check in slice 2 or 3.
 
 ### Learned words (`UserWords`)
 
-1. **The file can't be decrypted** (key gone after a reset of the key store, a restore onto a new device, or a damaged file). Proposed: the unreadable file is never overwritten. It is moved aside as `words.unreadable`, learning starts fresh, and Settings shows one line under "Learn my words": "Your learned words couldn't be read on this device, so it started a new list." Forget also deletes the set-aside file. (Question Q2.)
-2. **A passing error** (key store busy, the device not quite unlocked yet). Proposed: the store stays "not loaded", nothing is saved, and the next field tries again. A save never runs while the old file is unread.
+1. **The file can't be decrypted** (key gone after a reset of the key store, a restore onto a new device, or a damaged file). Decided: the unreadable file is never overwritten. It is moved aside as `words.unreadable`, learning starts fresh, and Settings shows one line under "Learn my words": "Your learned words couldn't be read on this device, so it started a new list." Forget also deletes the set-aside file. (Q2.)
+2. **A passing error** (key store busy, the device not quite unlocked yet). Decided: the store stays "not loaded", nothing is saved, and the next field tries again. A save never runs while the old file is unread.
 3. **The file is cut short or holds junk lines.** Decryption fails as a whole (AES-GCM checks the tag), so this is case 1. A line with a bad count is skipped, not read as 0.
-4. **Killed mid-save.** The new list is written to `words.tmp`, then renamed over `words.enc`. Proposed: the rename result is checked; on failure `dirty` stays set so the next save tries again, and the temp file is deleted. A leftover `words.tmp` at load time is deleted, never read.
+4. **Killed mid-save.** The new list is written to `words.tmp`, then renamed over `words.enc`. Decided: the rename result is checked; on failure `dirty` stays set so the next save tries again, and the temp file is deleted. A leftover `words.tmp` at load time is deleted, never read.
 5. **Settings and the keyboard at the same time.** One instance per process (D-017) and every method synchronized: kept as is, with a test that a Forget followed by a keyboard save writes nothing back.
-6. **Very large list.** Words are capped at 30 letters already. Proposed: cap the list at 5,000 words, dropping the least-used, so the file and the suggestion pass stay small.
+6. **Very large list.** Words are capped at 30 letters already. Decided: cap the list at 5,000 words, dropping the least-used, so the file and the suggestion pass stay small.
 7. **Format change later.** Proposed: the file starts with a one-byte format version (inside the encrypted body), so a future 0.3 can read 0.2.2 files and an older app refuses a newer file instead of wiping it. Files from 0.2.1 (no version byte) are read as version 0.
 
 ### Forget learned words
 
-1. **Delete fails** (file in use, storage error). Proposed: `clear()` reports success only when `words.enc`, `words.tmp` and `words.unreadable` are all gone. Settings then shows "Forgotten." and hides the pill; on failure it shows "Couldn't forget your words. Try again." and keeps the count.
+1. **Delete fails** (file in use, storage error). Decided: `clear()` reports success only when `words.enc`, `words.tmp` and `words.unreadable` are all gone. Settings then shows "Forgotten." and hides the pill; on failure it shows "Couldn't forget your words. Try again." and keeps the count.
 2. **The keyboard saves right after Forget.** Covered by the single store (D-017): memory is emptied first, under the same lock, so nothing old can be written back. Test kept as a JVM test.
 3. **Tapped twice.** The pill does one Forget at a time and is disabled while it runs.
 4. **Settings closed mid-Forget.** The work runs off the main thread and is not tied to the screen, so it finishes; the next open reads the true count.
-5. **What Forget doesn't touch:** the Keystore key stays (it holds no words); the "Learn my words" setting stays as it was. Proposed: say so in nothing; the pill text is enough.
+5. **What Forget doesn't touch:** the Keystore key stays (it holds no words); the "Learn my words" setting stays as it was. Decided: say so in nothing; the pill text is enough.
 
 ## Slices
 
-Each slice is one commit (or a small series), passes the build, unit tests and lint with no new errors, and is checked against `DONE-CHECKLIST.md` before the next starts. Order is proposed; slice 1 has no behaviour change and could ship alone.
+Each slice is one commit (or a small series), passes the build, unit tests and lint with no new errors, and is checked with `/finalize --slice` before the next starts. Order decided (Q4); slice 1 has no behaviour change and could ship alone.
 
 ### Slice 1: generic text and notices (K6, K7)
 
@@ -83,7 +83,7 @@ Each slice is one commit (or a small series), passes the build, unit tests and l
 
 ### Slice 4: accessibility (K4)
 
-Scope depends on Q3. Proposed full scope:
+Full scope (decided, Q3):
 
 - `KeyboardView`: an `ExploreByTouchHelper` exposing each key as a virtual view, with spoken labels for icon keys (Shift and its state, Backspace, Enter with its action word, Space, Symbols, Letters, Numbers, Hide keyboard), so TalkBack's lift-to-type works.
 - `SuggestionStrip`: each suggestion as a virtual view ("Suggestion: hello").
@@ -109,4 +109,9 @@ Claude's recommendation first in each.
 
 ## Owner's answers
 
-Not yet asked. (Recorded here and in `docs/KEYS-DECISIONS.md`, newest first, dated, in the owner's words.)
+2026-10-11, given in the hub session (the owner's picks, word for word). Also in `docs/KEYS-DECISIONS.md`.
+
+- Q1: "Make generic (Recommended)"
+- Q2: "Set aside + one line (Recommended)"
+- Q3: "Full support in 0.2.2 (Recommended)"
+- Q4: "Accept as drafted (Recommended)"

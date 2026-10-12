@@ -92,7 +92,7 @@ class KeysService : InputMethodService(), KeyListener {
             val t = SystemClock.elapsedRealtime()
             dict = runCatching { Dictionary.load(this) }.getOrNull()
             if (BuildConfig.TUNING) Log.d(TAG, "dictionary loaded in ${SystemClock.elapsedRealtime() - t} ms (${dict?.size ?: 0} words)")
-            userWords.load()
+            userWords.loadInBackground()
         }
     }
 
@@ -166,7 +166,7 @@ class KeysService : InputMethodService(), KeyListener {
         autocorrectOn = suggestOn && prefs.autocorrect && !noSuggestFlag
         learnOn = suggestOn && prefs.learn && !noSuggestFlag &&
             info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING == 0
-        if (learnOn) worker.execute { userWords.load() }
+        if (learnOn) userWords.loadInBackground()
         soundOn = prefs.sound
         vibrateOn = prefs.vibrate
         applyLook()
@@ -195,8 +195,7 @@ class KeysService : InputMethodService(), KeyListener {
 
         // A field that restarts mid-word (some messaging apps do, as text changes) keeps the word marked as being
         // typed; let it go, or the next space or period replaces that word (KB-2).
-        if (composing.isNotEmpty()) currentInputConnection?.finishComposingText()
-        composing.clear()
+        finishComposing()
         // Some apps restart the field as text changes, and rotation restarts it too: the same field keeps the undo and
         // the words taken back (delete() checks the text still matches before undoing).
         // Compose and web fields in one app can share an id, so the undo also needs the cursor where it left it.
@@ -204,8 +203,7 @@ class KeysService : InputMethodService(), KeyListener {
         // A field without autocorrect (a password field sharing a Compose view's id) never keeps another field's undo (R9).
         val sameField = restarting && key == fieldKey && autocorrectOn
         if (!sameField) kept.clear()
-        val u = undo
-        if (!sameField || u == null || u.at < 0 || info.initialSelStart != u.at || info.initialSelEnd != u.at) undo = null
+        undo = undo?.takeIf { sameField && it.at >= 0 && info.initialSelStart == it.at && info.initialSelEnd == it.at }
         fieldKey = key
         strip.clear()
         // The strip is always there (the keyboard never changes height). Private fields say so.
@@ -219,7 +217,7 @@ class KeysService : InputMethodService(), KeyListener {
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
         finishComposing()
-        if (learnOn) worker.execute { userWords.save() }
+        if (learnOn) userWords.saveInBackground()
     }
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
@@ -319,7 +317,7 @@ class KeysService : InputMethodService(), KeyListener {
         val st = ic.getSurroundingText(MAX_WORD, 1, 0) ?: return null
         val cur = st.selectionStart
         if (cur < 0 || cur != st.selectionEnd || cur > st.text.length) return null
-        if (cur < st.text.length && (st.text[cur].isLetter() || st.text[cur] == '\'')) return null
+        if (cur < st.text.length && Words.isWordChar(st.text[cur])) return null
         val before = st.text.subSequence(0, cur)
         val word = Words.wordAtEnd(before, MAX_WORD) ?: return null
         val start = if (st.offset >= 0) st.offset + cur - word.length else -1
@@ -355,12 +353,12 @@ class KeysService : InputMethodService(), KeyListener {
             // "i." stays as typed: "i.e." and list markers (the owner, 2026-10-12).
             val final = (if (sep == "." && original == "i") null else fixFor(original)) ?: original
             // Read before writing: where the word starts, so the undo knows where it applies.
-            val wordStart = if (final != original) cursorInField(ic)?.minus(original.length) ?: -1 else -1
+            val at = if (final != original) cursorInField(ic)?.let { it - original.length + final.length + sep.length } ?: -1 else -1
             ic.commitText(final, 1)
             learn(final)
             composing.clear()
             strip.clear()
-            undo = if (final != original) Undo(original, final, sep, if (wordStart >= 0) wordStart + final.length + sep.length else -1) else null
+            undo = if (final != original) Undo(original, final, sep, at) else null
             ic.commitText(sep, 1)
         } else {
             // No word of ours is being typed, so nothing in the field should be marked as one (KB-2).
@@ -507,7 +505,8 @@ class KeysService : InputMethodService(), KeyListener {
                 // Left: exactly what was typed (tap to keep it). Middle: the fix space will apply.
                 list += typed; list += pick
                 ranked.firstOrNull { it != pick && it != typed }?.let { list += it }
-                highlight = 1
+                // Not for a lone "i": a period keeps it lowercase (i.e.), so the highlight would promise too much (C1).
+                highlight = if (typed.equals("i", ignoreCase = true)) -1 else 1
             } else {
                 if (known(typed)) list += typed
                 ranked.filter { it != typed }.take(3 - list.size).forEach { list += it }
@@ -552,7 +551,7 @@ class KeysService : InputMethodService(), KeyListener {
     private fun learn(word: String) {
         // "im", "ive" and the like are learned only by taking the fix back (the undo records them), never just by
         // typing them where autocorrect is off (R12).
-        if (learnOn && !(!autocorrectOn && Dictionary.fixesToI(word))) userWords.record(word)
+        if (learnOn && (autocorrectOn || !Dictionary.fixesToI(word))) userWords.record(word)
     }
 
     /** Keep the user's capitalisation: "Hello" -> "Hello", "HELLO" -> "HELLO". */
@@ -572,7 +571,7 @@ class KeysService : InputMethodService(), KeyListener {
         if (::prefs.isInitialized) prefs.unlisten(prefsChanged)
         if (::feedback.isInitialized) feedback.release()
         // On the worker, which finishes queued work after shutdown(): no file or Keystore work on the main thread (K5).
-        if (::prefs.isInitialized && prefs.learn) worker.execute { userWords.save() }
+        if (::prefs.isInitialized && prefs.learn) userWords.saveInBackground()
         worker.shutdown()
         super.onDestroy()
     }

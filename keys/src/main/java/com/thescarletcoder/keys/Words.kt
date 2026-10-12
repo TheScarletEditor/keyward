@@ -5,7 +5,8 @@ object Words {
     /** Closing and opening quotes and brackets: "He left." teh and . (teh still start a sentence. */
     private const val WRAPPERS = "\"'()[]{}“”‘’«»"
 
-    private fun isWordChar(c: Char) = c.isLetter() || c == '\''
+    /** A letter or an apostrophe: what a word is made of, for typing and for learned words. */
+    fun isWordChar(c: Char) = c.isLetter() || c == '\''
 
     /**
      * The word [before] ends with (the text right before the cursor), leading apostrophes dropped; "" when it doesn't

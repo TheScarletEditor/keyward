@@ -12,7 +12,7 @@ Version 0.2.2 (versionCode 5) as decided in `docs/KEYS-0.2.2-PLAN.md` (slice 5, 
 | 0 | Preflight | done | tree clean, 8 commits ahead of origin; gh signed in; both devices connected; emulators scarlet_phone, scarlet_small, scarlet_tablet |
 | 1 | Audit | done | release manifest permissions match 0.2.1 (VIBRATE, receiver permission); allowBackup false; four agents (spec, rules, manifest, data); 9 findings, 4 questions; the rotation answer had its own slice check |
 | 2 | Code review | done | five agents (typing, storage, UI, security, Android pass); 12 findings, 3 questions; the R10 answer had its own slice check (clean, two notes fixed); 49 unit tests, lint no errors |
-| 3 | Cleanup | pending | |
+| 3 | Cleanup | done | /simplify (reuse, simplification, efficiency, altitude agents); no TODOs, commented-out code or unused resources added; TUNING false in release; release notes drafted (Q8), README line (Q9), C1 answered (Q10); 49 unit tests, lint no errors |
 | 4 | QA | pending | |
 | 5 | Smoke test | pending | |
 | 6 | Ship | pending | |
@@ -47,6 +47,11 @@ Version 0.2.2 (versionCode 5) as decided in `docs/KEYS-0.2.2-PLAN.md` (slice 5, 
 | R11 | 2 | question | KeysService.takeUp | a picked-up word was a name in boxes that capitalise every word | Q6: not in those boxes | stage 2 |
 | R12 | 2 | question | Suggest, KeysService.learn | "im" typed twice where autocorrect is off stopped the I'm fix for good | Q7: only taking it back counts | stage 2 |
 | R13 | 2 | mechanical | WordStore.save, UserWords | the Keystore was asked to retire keys after every save | only when more than one key exists | stage 2 |
+| C1 | 3 | question | KeysService.refreshSuggestions | the strip highlighted "I" for "i" though "i." stays lowercase | Q10: no highlight for "i" | stage 3 |
+| C2 | 3 | mechanical | WordStore, UserWords | saves and loads ran on the suggestion thread; trim sorted all 5,000 words; the save copy was built under the memory lock; the learned list was copied on every key; "newer" was a second flag | saves and loads on the store's own thread; linear trim; bytes built after the lock; learned list cached per change; one state | stage 3 |
+| C3 | 3 | mechanical | SettingsActivity, LicensesScreen | the same card row three times; two states for one Forget result; aliases (open, rows) | NavCard; one result state; aliases gone | stage 3 |
+| C4 | 3 | mechanical | KeysService, KeyboardView, Words, Suggest, Licenses, UserWords, LicensesTest | repeated rules and small expressions; Enter redrew on every field start; dead members; a regex compiled per line | shared isWordChar and fixesToI, finishComposing(), takeIf undo, one `at`, Enter redraws on change, dead members removed, regex compiled once | stage 3 |
+| C5 | 3 | skipped | SettingsActivity scroll, Keystore key cache, backspace allocations, separator finishComposingText | possible further simplifications | left as is: tested logic or safety, small gain before a release; noted for later | |
 | R14 | 2 | noted | SuggestTest.fastEnoughPerKeystroke | the 50 ms speed check failed once (60 ms) while two builds and lint ran alongside; alone: 21 ms and 20 ms | QA runs the tests on their own | |
 
 ## Questions
@@ -81,6 +86,19 @@ A picked-up capitalised word counted as a name even where the box capitalises ev
 ### Q7 (review, R12)
 "im" learned by typing it where autocorrect is off stops the I'm fix. Options: only taking it back counts (recommended), or leave as is.
 **Answer (2026-10-12):** "Only taking it back counts (Recommended)"
+
+### Q8 (cleanup, release notes)
+The 0.2.2 release notes as drafted in `docs/release-0.2.2/RELEASE-NOTES.md`. Options: OK as written (recommended), or shorter.
+**Answer (2026-10-12):** "OK as written (Recommended)"
+
+### Q9 (cleanup, README)
+Add "Works with TalkBack: every key, suggestion and setting is spoken." to the README feature list. Options: add it (recommended), or leave the README.
+**Answer (2026-10-12):** "Add it (Recommended)"
+
+### Q10 (cleanup, C1)
+"I" highlighted for "i" though a period keeps it lowercase. Options: leave it (recommended), or no highlight for "i".
+**Answer (2026-10-12):** "No highlight for \"i\""
+**Follow-up:** "I" is still offered and space still fixes it; it's just not highlighted.
 
 ## Ship
 

@@ -36,19 +36,28 @@ fun LicensesList(p: ScarletPalette, font: FontFamily, onOpen: (Licenses.Part) ->
         Text("Scarlet Keys is free software. It's built with these, each under its own license.",
             color = Color(p.soft), fontSize = 16.sp, fontFamily = font)
         Licenses.parts.forEach { part ->
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(p.surface))
-                    .border(1.dp, Color(p.line), RoundedCornerShape(16.dp))
-                    .clickable(role = Role.Button, onClickLabel = "Read the license") { onOpen(part) }.padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(part.name, color = Color(p.text), fontSize = 17.sp, fontFamily = font)
-                    Text(part.license, color = Color(p.soft), fontSize = 14.sp, fontFamily = font)
-                }
-                Text("Read", color = Color(p.soft), fontSize = 15.sp, fontFamily = font)
-            }
+            NavCard(part.name, part.license, "Read", p, font, titleSize = 17, role = Role.Button, clickLabel = "Read the license") { onOpen(part) }
         }
+    }
+}
+
+/** A card that opens another page: title, a line under it, and a word on the right ("Open", "Read"). */
+@Composable
+internal fun NavCard(
+    title: String, note: String, action: String, p: ScarletPalette, font: FontFamily,
+    titleSize: Int = 18, role: Role? = null, clickLabel: String? = null, onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(p.surface))
+            .border(1.dp, Color(p.line), RoundedCornerShape(16.dp))
+            .clickable(role = role, onClickLabel = clickLabel, onClick = onClick).padding(18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Color(p.text), fontSize = titleSize.sp, fontFamily = font)
+            Text(note, color = Color(p.soft), fontSize = 14.sp, fontFamily = font)
+        }
+        Text(action, color = Color(p.soft), fontSize = 15.sp, fontFamily = font)
     }
 }
 

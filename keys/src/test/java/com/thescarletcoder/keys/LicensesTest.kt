@@ -21,7 +21,7 @@ class LicensesTest {
 
     @Test fun everyListedLicenseShips() {
         listed.forEach { path ->
-            assertTrue("$path is listed but not in the APK", File(built, path).isFile || File(source, path).isFile)
+            assertTrue("$path is listed but not in the APK", shipped(path).isFile)
         }
     }
 

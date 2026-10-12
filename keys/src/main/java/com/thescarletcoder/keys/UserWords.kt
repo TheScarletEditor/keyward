@@ -36,20 +36,14 @@ class UserWords private constructor(context: Context) {
 
     /** Learned words (used twice or more), for suggestions. */
     val learned: Collection<String> get() = store.learned
-    val count: Int get() = store.count
-
-    /** A list that couldn't be read on this device was set aside and a new one started. */
-    val hasSetAside: Boolean get() = store.hasSetAside
-
-    /** What Settings says about the list, if anything. */
-    val notice: WordStore.Notice get() = store.notice
-
     fun record(word: String) = store.record(word)
-    fun load() = store.load()
-    fun save() = store.save()
 
-    /** "Forget learned words": true only when every copy is gone. */
-    fun clear(): Boolean = store.clear()
+    /**
+     * Read and save on the store's own thread (process-long, never the screen's or the keyboard's suggestion thread),
+     * so a save's encryption and disk sync never delay the next field's suggestions.
+     */
+    fun loadInBackground() = io.execute { store.load() }
+    fun saveInBackground() = io.execute { store.save() }
 
     /** What Settings shows: the count and the notice, if any. */
     data class Status(val count: Int, val notice: WordStore.Notice)
@@ -83,11 +77,11 @@ class UserWords private constructor(context: Context) {
 
         private fun generation(alias: String): Int = when {
             alias == ALIAS -> 1
-            alias.startsWith("$ALIAS_PREFIX$GEN") -> alias.removePrefix("$ALIAS_PREFIX$GEN").toIntOrNull() ?: 0
+            alias.startsWith(GEN_PREFIX) -> alias.removePrefix(GEN_PREFIX).toIntOrNull() ?: 0
             else -> 0
         }
 
-        private fun aliasFor(gen: Int) = if (gen == 1) ALIAS else "$ALIAS_PREFIX$GEN$gen"
+        private fun aliasFor(gen: Int) = if (gen == 1) ALIAS else "$GEN_PREFIX$gen"
 
         /** Whether more than one key existed at the last listing (so saves skip a Keystore call when there's one). */
         @Volatile private var several = true
@@ -161,7 +155,7 @@ class UserWords private constructor(context: Context) {
         private const val ALIAS_PREFIX = "keys_user_words_"
         /** The first key, as in 0.2.1. Later generations: keys_user_words_g2, _g3... */
         private const val ALIAS = "${ALIAS_PREFIX}v1"
-        private const val GEN = "g"
+        private const val GEN_PREFIX = "${ALIAS_PREFIX}g"
         @Volatile private var instance: UserWords? = null
 
         fun get(context: Context): UserWords = instance ?: synchronized(this) {

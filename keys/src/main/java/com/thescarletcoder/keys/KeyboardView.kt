@@ -66,10 +66,10 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
     var shift: Shift = Shift.OFF
         set(v) { if (field != v) { field = v; invalidate(); a11y.invalidateRoot() } }
     var enterKind: EnterKind = EnterKind.RETURN
-        set(v) { field = v; invalidate(); a11y.invalidateRoot() }
+        set(v) { if (field != v) { field = v; invalidate(); a11y.invalidateRoot() } }
     /** Shown on Enter when [enterKind] is WORD ("Next", "Done", "Back"). */
     var enterWord: String = ""
-        set(v) { field = v; invalidate(); a11y.invalidateRoot() }
+        set(v) { if (field != v) { field = v; invalidate(); a11y.invalidateRoot() } }
     var keyHeightDp: Int = 64
         set(v) { field = v; requestLayout() }
     var colors: KeyColors = KeyColors(ScarletTokens.DARK)

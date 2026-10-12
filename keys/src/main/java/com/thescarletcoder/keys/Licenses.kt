@@ -26,12 +26,14 @@ object Licenses {
      * none lowercase, like "PREAMBLE") at the start of a paragraph keeps its own line, so the last line of an all-caps
      * paragraph ("SUCH DAMAGES.") stays with it; divider lines of dashes are dropped.
      */
+    private val spaces = Regex("[ \t]{2,}")
+
     fun reflow(text: String): String {
         val paragraphs = ArrayList<String>()
         val current = StringBuilder()
         fun flush() { if (current.isNotEmpty()) { paragraphs += current.toString(); current.clear() } }
         text.replace("\r\n", "\n").split("\n").forEach { raw ->
-            val line = raw.trim().replace(Regex("[ \t]{2,}"), " ")
+            val line = raw.trim().replace(spaces, " ")
             when {
                 line.isEmpty() -> flush()
                 line.all { it == '-' } -> flush()

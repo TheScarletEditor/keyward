@@ -44,7 +44,8 @@ class WordStore(
     /** The file can't be read, now or later: wrong or lost key, damaged or cut-short file. */
     class Unreadable(cause: Throwable? = null) : Exception(cause)
 
-    private enum class State { NOT_LOADED, LOADED, REFUSED }
+    /** REFUSED_NEWER: a list from a newer format; REFUSED: an unreadable list that couldn't be moved aside. */
+    private enum class State { NOT_LOADED, LOADED, REFUSED, REFUSED_NEWER }
 
     /** What Settings tells the user about the list (Q2, Q12). */
     enum class Notice { NONE, SET_ASIDE, NEWER, NOT_LEARNING }
@@ -63,8 +64,7 @@ class WordStore(
     /** Bumped on every change to [counts]: a save clears [dirty] only if nothing changed while it was writing. */
     private var generation = 0L
     @Volatile private var state = State.NOT_LOADED
-    /** Why the store refused: a newer format, or an unreadable file that couldn't be moved aside. */
-    @Volatile private var refusedNewer = false
+    private val refused get() = state == State.REFUSED || state == State.REFUSED_NEWER
     /** Passing errors in a row while unlocked; at [MAX_PASSING] the file is treated as unreadable (Q13). Under [io]. */
     private var passingFailures = 0
     /** Saves whose seal failed in a row; at [MAX_PASSING] the key is taken as broken and rotated. Under [io]. */
@@ -74,9 +74,8 @@ class WordStore(
 
     private val file get() = File(dir, "words.enc")
     private val tmp get() = File(dir, "words.tmp")
-    private fun setAsideFiles() = setAsideFilesOrNull().orEmpty()
     /** Null when the folder couldn't be listed (an I/O error): Forget must not report success then (A-D3). */
-    private fun setAsideFilesOrNull() =
+    private fun setAsideFiles() =
         dir.listFiles { f -> f.name == "words.unreadable" || f.name.startsWith("words.unreadable-") }?.toList()
 
     /** A word counts as "known" once used twice. */
@@ -84,18 +83,24 @@ class WordStore(
 
     @Synchronized fun boost(word: String) = ((counts[word.lowercase()] ?: 0) * 8).coerceAtMost(80)
 
-    /** Learned words (used twice or more), for suggestions. */
-    val learned: Collection<String> @Synchronized get() = counts.filterValues { it >= 2 }.keys.toList()
+    private var learnedCache: List<String> = emptyList()
+    private var learnedAt = -1L
+
+    /** Learned words (used twice or more), for suggestions. Rebuilt only when the list changed, not on every key. */
+    val learned: Collection<String> @Synchronized get() {
+        if (learnedAt != generation) { learnedCache = counts.filterValues { it >= 2 }.keys.toList(); learnedAt = generation }
+        return learnedCache
+    }
 
     val count: Int @Synchronized get() = counts.size
 
     /** A list that couldn't be read was set aside (Settings says so, Q2). Touches the disk: not on the main thread. */
-    val hasSetAside: Boolean get() = setAsideFiles().isNotEmpty()
+    val hasSetAside: Boolean get() = !setAsideFiles().isNullOrEmpty()
 
     /** Touches the disk: not on the main thread. */
     val notice: Notice get() = synchronized(io) {
         when {
-            state == State.REFUSED && refusedNewer -> Notice.NEWER
+            state == State.REFUSED_NEWER -> Notice.NEWER
             state == State.REFUSED -> Notice.NOT_LEARNING
             hasSetAside -> Notice.SET_ASIDE
             else -> Notice.NONE
@@ -103,11 +108,11 @@ class WordStore(
     }
 
     /** True once the file was read (or there was none): until then nothing is saved over it. */
-    val isLoaded: Boolean get() = state == State.LOADED
+    internal val isLoaded: Boolean get() = state == State.LOADED
 
     @Synchronized
     fun record(word: String) {
-        if (state == State.REFUSED) return
+        if (refused) return
         val w = word.lowercase()
         if (!learnable(w)) return
         // Moved to the end: most recently used. The list may pass the cap until the next save trims it (off the typing path).
@@ -125,7 +130,7 @@ class WordStore(
     fun load() = synchronized(io) {
         if (state != State.NOT_LOADED || !unlocked()) return
         // A leftover save in progress is never read (4).
-        if (tmp.exists()) tmp.delete()
+        tmp.delete()
         if (!file.exists()) { synchronized(this) { state = State.LOADED }; return }
         // Far larger than 5,000 words could ever be (about 200 KB): not ours, set aside unread (R7).
         if (file.length() > MAX_FILE_BYTES) { setAsideFile(); return }
@@ -143,10 +148,11 @@ class WordStore(
         val format = formatOf(body)
         if (format < 0) { setAsideFile(); return }
         if (format > FORMAT) {
-            synchronized(this) { state = State.REFUSED; refusedNewer = true; counts.clear(); generation++; dirty = false }
+            synchronized(this) { state = State.REFUSED_NEWER; counts.clear(); generation++; dirty = false }
             return
         }
-        val text = String(body, if (format == 0) 0 else 1, body.size - (if (format == 0) 0 else 1), Charsets.UTF_8)
+        val skip = if (format == 0) 0 else 1
+        val text = String(body, skip, body.size - skip, Charsets.UTF_8)
         val fromFile = LinkedHashMap<String, Int>()
         text.lineSequence().forEach { line ->
             val i = line.lastIndexOf('\t')
@@ -175,12 +181,19 @@ class WordStore(
      */
     fun save() = synchronized(io) {
         if (!unlocked()) return
-        val (body, gen) = synchronized(this) {
+        // Only a copy under the memory lock; the text and bytes are built after it's released.
+        val words: Array<String>
+        val uses: IntArray
+        val gen: Long
+        synchronized(this) {
             if (!dirty || state != State.LOADED) return
             trim()
-            val text = counts.entries.joinToString("\n") { "${it.key}\t${it.value}" }
-            (byteArrayOf(FORMAT.toByte()) + text.toByteArray(Charsets.UTF_8)) to generation
+            words = counts.keys.toTypedArray(); uses = counts.values.toIntArray(); gen = generation
         }
+        val body = java.io.ByteArrayOutputStream(words.size * 12 + 1).apply {
+            write(FORMAT)
+            words.forEachIndexed { i, w -> if (i > 0) write('\n'.code); write("$w\t${uses[i]}".toByteArray(Charsets.UTF_8)) }
+        }.toByteArray()
         when (write(body)) {
             Write.OK -> { saved(gen); return }
             // The seal worked, so the key is fine: a full disk or a failed rename says nothing about it (R6).
@@ -225,20 +238,20 @@ class WordStore(
      * last, so a failed delete always leaves it on disk, with the words and count as they were (L3-1).
      */
     fun clear(): Boolean = synchronized(io) {
-        val aside = setAsideFilesOrNull()
+        val aside = setAsideFiles()
         val gone = aside != null && (listOf(tmp) + aside + file).all { !it.exists() || delete(it) }
         synchronized(this) {
             if (!gone) { if (state == State.LOADED) dirty = true; return false }
             counts.clear()
             generation++
             dirty = false
-            state = State.LOADED; refusedNewer = false
+            state = State.LOADED
         }
         passingFailures = 0
         true
     }
 
-    private fun learnable(w: String) = w.length in 2..MAX_LETTERS && w.all { it.isLetter() || it == '\'' }
+    private fun learnable(w: String) = w.length in 2..MAX_LETTERS && w.all(Words::isWordChar)
 
     private fun setAsideFile() {
         // Never overwrite a list set aside earlier: the next free name.
@@ -246,14 +259,20 @@ class WordStore(
             .first { !it.exists() }
         // If it can't be moved, nothing is learned or saved this run, so the file is never written over.
         val moved = move(file, target)
-        synchronized(this) { state = if (moved) State.LOADED else State.REFUSED; refusedNewer = false }
+        synchronized(this) { state = if (moved) State.LOADED else State.REFUSED }
     }
 
-    /** Down to [CAP] words: the least used go first, and among those the longest unused (6). */
+    /**
+     * Down to [CAP] words: the least used go first, and among those the longest unused (6). Usually one or a few over,
+     * so a pass for the lowest count and a removal in last-used order, no sort.
+     */
     private fun trim() {
-        if (counts.size <= CAP) return
-        val order = counts.keys.withIndex().associate { it.value to it.index }
-        counts.entries.sortedWith(compareBy({ it.value }, { order[it.key] })).take(counts.size - CAP).map { it.key }.forEach { counts.remove(it) }
+        while (counts.size > CAP) {
+            val low = counts.values.min()
+            val iter = counts.entries.iterator()
+            while (counts.size > CAP && iter.hasNext()) if (iter.next().value == low) iter.remove()
+            generation++ // the cached learned list rebuilds
+        }
     }
 
     companion object {

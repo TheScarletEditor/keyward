@@ -135,8 +135,8 @@ class SettingsActivity : ComponentActivity() {
             var status by remember { mutableStateOf<UserWords.Status?>(null) }
             LaunchedEffect(Unit) { words.loadAsync { status = it } }
             var forgetting by remember { mutableStateOf(false) }
-            var forgetResult by rememberSaveable { mutableStateOf<String?>(null) } // survives rotation
-            var forgetFailed by rememberSaveable { mutableStateOf(false) } // keeps the pill to try again
+            // The last Forget's result (null: none yet); survives rotation, and a failure keeps the pill to try again.
+            var forgetOk by rememberSaveable { mutableStateOf<Boolean?>(null) }
             // Saved across rotation and theme changes, so the page that's open stays open.
             var licenses by rememberSaveable { mutableStateOf(false) }
             var readingIndex by rememberSaveable { mutableIntStateOf(-1) }
@@ -165,14 +165,13 @@ class SettingsActivity : ComponentActivity() {
                 Modifier.fillMaxSize().background(Color(p.bg)).safeDrawingPadding().verticalScroll(scroll).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                val open = reading
                 if (licenses) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(open?.license ?: "Open source licenses", color = Color(p.text), fontSize = 30.sp, fontFamily = fraunces,
+                        Text(reading?.license ?: "Open source licenses", color = Color(p.text), fontSize = 30.sp, fontFamily = fraunces,
                             modifier = Modifier.weight(1f).semantics { heading() })
-                        Pill("Back", false, p, inter) { if (open != null) readingIndex = -1 else licenses = false }
+                        Pill("Back", false, p, inter) { if (reading != null) readingIndex = -1 else licenses = false }
                     }
-                    if (open != null) LicenseText(open, p, inter) else LicensesList(p, inter) { readingIndex = Licenses.parts.indexOf(it) }
+                    if (reading != null) LicenseText(reading, p, inter) else LicensesList(p, inter) { readingIndex = Licenses.parts.indexOf(it) }
                     return@Column
                 }
                 if (tuning) {
@@ -225,17 +224,18 @@ class SettingsActivity : ComponentActivity() {
                         WordStore.Notice.NONE -> null
                     }
                     noticeText?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = inter) }
-                    if (count > 0 || noticeText != null || forgetFailed) {
+                    if (count > 0 || noticeText != null || forgetOk == false) {
                         // One Forget at a time (Forget 3); "Forgotten." only when every copy is gone (Forget 1).
                         Pill(if (count > 0) "Forget learned words ($count)" else "Forget learned words", false, p, inter, enabled = !forgetting) {
-                            forgetting = true; forgetResult = null
+                            forgetting = true; forgetOk = null
                             words.forgetAsync { ok, s ->
-                                forgetting = false; status = s; forgetFailed = !ok
-                                forgetResult = if (ok) "Forgotten." else "Couldn't forget your words. Try again."
+                                forgetting = false; status = s; forgetOk = ok
                             }
                         }
                     }
-                    forgetResult?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = inter) }
+                    forgetOk?.let { ok ->
+                        Text(if (ok) "Forgotten." else "Couldn't forget your words. Try again.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)
+                    }
                 }
 
                 Section("Feel", p, inter) {
@@ -271,36 +271,16 @@ class SettingsActivity : ComponentActivity() {
                     ScarletField(t, { t = it }, "Type here to test", p, inter)
                 }
 
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(p.surface))
-                        .border(1.dp, Color(p.line), RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClickLabel = "Open the licenses") { mainScroll = scroll.value; licenses = true }.padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Open source licenses", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
-                        Text("The free software Scarlet Keys is built with, and its licenses.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)
-                    }
-                    Text("Open", color = Color(p.soft), fontSize = 15.sp, fontFamily = inter)
-                }
+                NavCard("Open source licenses", "The free software Scarlet Keys is built with, and its licenses.", "Open", p, inter,
+                    role = Role.Button, clickLabel = "Open the licenses") { mainScroll = scroll.value; licenses = true }
 
                 if (BuildConfig.TUNING) {
                     // Which fields asked for what (the owner, 2026-10-09: number fields don't always open the number pad).
                     Section("Recent fields", p, inter) {
-                        val rows = fields
-                        if (rows.isEmpty()) Text("Open a few text boxes, then come back.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)
-                        rows.forEach { Text(it, color = Color(p.text), fontSize = 14.sp, fontFamily = inter) }
+                        if (fields.isEmpty()) Text("Open a few text boxes, then come back.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)
+                        fields.forEach { Text(it, color = Color(p.text), fontSize = 14.sp, fontFamily = inter) }
                     }
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(p.surface))
-                            .border(1.dp, Color(p.line), RoundedCornerShape(16.dp)).clickable { mainScroll = scroll.value; tuning = true }.padding(18.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Tuning", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
-                            Text("Feel values for this build. Not in public releases.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)
-                        }
-                        Text("Open", color = Color(p.soft), fontSize = 15.sp, fontFamily = inter)
-                    }
+                    NavCard("Tuning", "Feel values for this build. Not in public releases.", "Open", p, inter) { mainScroll = scroll.value; tuning = true }
                 }
             }
         }

@@ -125,9 +125,9 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
     private val hairline = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 1 * density }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val hint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.RIGHT; typeface = inter }
+    private val wordmarkSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 10f, resources.displayMetrics)
     private val wordmark = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER; typeface = interMedium; letterSpacing = 0.16f
-        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 10f, resources.displayMetrics)
+        textAlign = Paint.Align.CENTER; typeface = interMedium; letterSpacing = 0.16f; textSize = wordmarkSize
     }
     private val chevron = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 2.5f * density; strokeCap = Paint.Cap.ROUND }
 
@@ -201,6 +201,13 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
         keyOf = keys.toTypedArray()
         upperLabel = Array(n) { keyOf[it].label.let { l -> if (l.length == 1 && l[0].isLetter()) l.uppercase() else l } }
         accentsFor = Array(n) { keyOf[it].let { k -> if (k.type == KeyType.CHAR && k.label.length == 1) Layouts.accents[k.label[0]] else null } }
+        // The wordmark never runs past the space bar (a narrow keyboard at a large font size, like Settings' preview, S1).
+        wordmark.textSize = wordmarkSize
+        keyOf.indexOfFirst { it.type == KeyType.SPACE }.takeIf { it >= 0 }?.let { s ->
+            val room = keyRect[s].width() - 16 * density
+            val w = wordmark.measureText(WORDMARK)
+            if (w > room && room > 0f) wordmark.textSize = wordmarkSize * room / w
+        }
         a11y.invalidateRoot()
     }
 

@@ -13,7 +13,7 @@ Version 0.2.2 (versionCode 5) as decided in `docs/KEYS-0.2.2-PLAN.md` (slice 5, 
 | 1 | Audit | done | release manifest permissions match 0.2.1 (VIBRATE, receiver permission); allowBackup false; four agents (spec, rules, manifest, data); 9 findings, 4 questions; the rotation answer had its own slice check |
 | 2 | Code review | done | five agents (typing, storage, UI, security, Android pass); 12 findings, 3 questions; the R10 answer had its own slice check (clean, two notes fixed); 49 unit tests, lint no errors |
 | 3 | Cleanup | done | /simplify (reuse, simplification, efficiency, altitude agents); no TODOs, commented-out code or unused resources added; TUNING false in release; release notes drafted (Q8), README line (Q9), C1 answered (Q10); 49 unit tests, lint no errors |
-| 4 | QA | done | pass 1: QA1 fixed, QA2 asked (Q11); pass 2 clean: 49 release unit tests, lintRelease no errors and no new warnings, release/personal/smoke built, release APK 0.2.2 (5), not debuggable, permissions as 0.2.1, 4,524,313 bytes (0.2.1: 4,451,441, +1.6%), license texts in assets/licenses (C2 done) |
+| 4 | QA | done | pass 3 after S1 (stage 5): clean (49 tests, no lint errors or new warnings, three builds, release APK checks unchanged). Pass 1: QA1 fixed, QA2 asked (Q11); pass 2 clean: 49 release unit tests, lintRelease no errors and no new warnings, release/personal/smoke built, release APK 0.2.2 (5), not debuggable, permissions as 0.2.1, 4,524,313 bytes (0.2.1: 4,451,441, +1.6%), license texts in assets/licenses (C2 done) |
 | 5 | Smoke test | pending | |
 | 6 | Ship | pending | |
 | 7 | Wrap-up | pending | |
@@ -54,6 +54,7 @@ Version 0.2.2 (versionCode 5) as decided in `docs/KEYS-0.2.2-PLAN.md` (slice 5, 
 | C5 | 3 | skipped | SettingsActivity scroll, Keystore key cache, backspace allocations, separator finishComposingText | possible further simplifications | left as is: tested logic or safety, small gain before a release; noted for later | |
 | QA1 | 4 | mechanical | keys/build.gradle.kts | the new customview dependency wasn't in the version catalog (lint UseTomlInstead) | moved to gradle/libs.versions.toml | stage 4 |
 | QA2 | 4 | question | gradle/libs.versions.toml | lint: customview 1.2.0 exists (1.1.0 used) | Q11: keep 1.1.0; warning accepted | |
+| S1 | 5 | mechanical | KeyboardView (since 0.2.1) | on a small phone at 1.3x text, the space bar's "SCARLET KEYS" mark ran past the key in Settings' preview | shrunk to fit the space bar when needed; QA pass 3 clean | stage 5 |
 | R14 | 2 | noted | SuggestTest.fastEnoughPerKeystroke | the 50 ms speed check failed once (60 ms) while two builds and lint ran alongside; alone: 21 ms and 20 ms | QA runs the tests on their own | |
 
 ## Questions

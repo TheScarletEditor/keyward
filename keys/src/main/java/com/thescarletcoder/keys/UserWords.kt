@@ -89,9 +89,14 @@ class UserWords private constructor(context: Context) {
 
         private fun aliasFor(gen: Int) = if (gen == 1) ALIAS else "$ALIAS_PREFIX$GEN$gen"
 
+        /** Whether more than one key existed at the last listing (so saves skip a Keystore call when there's one). */
+        @Volatile private var several = true
+
         /** Existing key aliases of this store, newest first. */
         private fun aliases(ks: KeyStore): List<String> =
-            ks.aliases().toList().filter { generation(it) > 0 }.sortedByDescending { generation(it) }
+            ks.aliases().toList().filter { generation(it) > 0 }.sortedByDescending { generation(it) }.also { several = it.size > 1 }
+
+        override fun hasOldKeys(): Boolean = several
 
         override fun seal(plain: ByteArray): ByteArray {
             val ks = store()
@@ -135,6 +140,7 @@ class UserWords private constructor(context: Context) {
         override fun retireOld() {
             val ks = store()
             aliases(ks).drop(1).forEach { ks.deleteEntry(it) }
+            several = false
         }
 
         private fun key(ks: KeyStore, alias: String): SecretKey {

@@ -1,6 +1,7 @@
 package com.thescarletcoder.keys
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
@@ -36,6 +37,9 @@ class SuggestTest {
         assertEquals("I'd", fix("i'd"))
         listOf("I", "I'm", "I'M", "id", "ill").forEach { assertNull(it, fix(it)) }
         assertNull("acronym in caps", fix("IM"))
+        // Forms the rule fixes (R12: never learned just by typing them where autocorrect is off).
+        assertTrue(Dictionary.fixesToI("im")); assertTrue(Dictionary.fixesToI("ive")); assertTrue(Dictionary.fixesToI("Im"))
+        assertFalse(Dictionary.fixesToI("i'm")); assertFalse(Dictionary.fixesToI("I'm")); assertFalse(Dictionary.fixesToI("ill"))
         // A word the user taught Keys by taking the fix back is left alone.
         assertNull(dict.autocorrect("im", { dict.isKnown(it) }, { 0 }, listOf("im")))
         // "i'm" learned from every fix still gets its capital.

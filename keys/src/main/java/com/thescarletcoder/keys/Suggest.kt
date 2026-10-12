@@ -124,6 +124,9 @@ class Dictionary private constructor(
         /** Only autocorrect to reasonably common words. */
         private const val MIN_FIX_FREQ = 50
 
+        /** "im", "ive"... typed as such: a form the "I" rule fixes by more than a capital (not "i'm" or "I'm"). */
+        fun fixesToI(word: String): Boolean = I_WORDS[word.lowercase()]?.let { it.lowercase() != word.lowercase() } ?: false
+
         /** Typed (lowercase) to fixed. "id" and "ill" are words of their own, so "I'd" and "I'll" need the apostrophe. */
         private val I_WORDS = mapOf(
             "i" to "I", "im" to "I'm", "i'm" to "I'm", "ive" to "I've", "i've" to "I've", "i'll" to "I'll", "i'd" to "I'd",

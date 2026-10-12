@@ -32,6 +32,8 @@ interface KeyListener {
     fun onAlt(text: String)
     fun onDeleteRepeat()
     fun onSpaceLongPress()
+    /** Caps lock straight away: TalkBack's long press on Shift, where two quick taps aren't possible (R1). */
+    fun onShiftLock()
 }
 
 /** The letter bubble and the accent row, drawn by [KeyOverlay] above the keys. Coordinates are this view's. */
@@ -52,6 +54,9 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
 
     var rows: List<List<Key>> = Layouts.letters
         set(v) {
+            // The service sets the layout on every field start, restarts included: only a real change counts (R2), or
+            // TalkBack users lose their place after every restart.
+            if (v === field) return
             // TalkBack's focus was on a key of the old layout: let it go, or it lands on a different key (L4-1).
             a11y.accessibilityFocusedVirtualViewId.takeIf { it != ExploreByTouchHelper.INVALID_ID }?.let {
                 a11y.getAccessibilityNodeProvider(this)?.performAction(it, AccessibilityNodeInfoCompat.ACTION_CLEAR_ACCESSIBILITY_FOCUS, null)
@@ -220,7 +225,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
             keyRect[id].roundOut(bounds)
             node.setBoundsInParent(bounds)
             node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
-            if (k.alt != null || k.type == KeyType.SPACE) node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
+            if (k.alt != null || k.type == KeyType.SPACE || k.type == KeyType.SHIFT) node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, args: Bundle?): Boolean {
@@ -230,6 +235,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
                 AccessibilityNodeInfoCompat.ACTION_CLICK -> { listener.onPressFeedback(k); listener.onKey(k); true }
                 AccessibilityNodeInfoCompat.ACTION_LONG_CLICK -> when {
                     k.type == KeyType.SPACE -> { listener.onSpaceLongPress(); true }
+                    k.type == KeyType.SHIFT -> { listener.onShiftLock(); true }
                     k.alt != null -> { listener.onAlt(k.alt); true }
                     else -> false
                 }

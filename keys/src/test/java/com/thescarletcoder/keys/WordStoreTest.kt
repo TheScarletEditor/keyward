@@ -24,6 +24,7 @@ class WordStoreTest {
         var rotations = 0
         override fun rotate(): Boolean { rotations++; keys += keys.last() + 1; brokenKey = false; return true }
         override fun retireOld() { val k = keys.last(); keys.clear(); keys += k }
+        override fun hasOldKeys() = keys.size > 1
         override fun seal(plain: ByteArray): ByteArray {
             if (brokenKey) throw IllegalStateException("key unusable")
             return byteArrayOf(MARK, keys.last().toByte()) + plain.map { (it.toInt() xor 0x5A).toByte() }
@@ -281,6 +282,39 @@ class WordStoreTest {
         File(dir, "words.unreadable").writeBytes(byteArrayOf(1))
         assertFalse(s.clear())
         val t = store(); t.load(); assertTrue("the list is still on disk", t.isKnown("zorbex"))
+    }
+
+    @Test fun oversizedFileIsSetAsideUnread() {
+        enc.writeBytes(ByteArray((WordStore.MAX_FILE_BYTES + 1).toInt()))
+        val s = store(); s.load()
+        assertTrue(s.hasSetAside); assertTrue(s.isLoaded)
+    }
+
+    @Test fun countsNeverOverflow() {
+        writeList(format1("zorbex\t${Int.MAX_VALUE}"))
+        val s = store(); s.record("zorbex"); s.load()
+        assertTrue(s.isKnown("zorbex")); assertTrue(s.boost("zorbex") > 0)
+    }
+
+    @Test fun aSaveThatFailsOnDiskResetsTheSealCount() {
+        var diskOk = true
+        val s = store(move = { a, b -> diskOk && a.renameTo(b) }); s.load()
+        s.record("zorbex")
+        sealer.brokenKey = true
+        repeat(WordStore.MAX_PASSING - 1) { s.save() } // two seal failures
+        sealer.brokenKey = false; diskOk = false
+        s.save() // seal works, disk fails: the key is fine
+        sealer.brokenKey = true; diskOk = true
+        s.save() // one seal failure in a row, not three
+        assertEquals(0, sealer.rotations)
+    }
+
+    @Test fun wordsTypedDuringASaveStayUnsaved() {
+        val s = store(move = { a, b -> a.renameTo(b) }); s.load()
+        s.record("zorbex"); s.save()
+        s.record("quillet") // after the save: still dirty, so the next save writes it
+        s.save()
+        val t = store(); t.load(); assertEquals(2, t.count)
     }
 
     /** Letters-only made-up words: a, b, ..., z, ba, bb, ... */

@@ -201,7 +201,8 @@ class KeysService : InputMethodService(), KeyListener {
         // the words taken back (delete() checks the text still matches before undoing).
         // Compose and web fields in one app can share an id, so the undo also needs the cursor where it left it.
         val key = info.packageName to info.fieldId
-        val sameField = restarting && key == fieldKey
+        // A field without autocorrect (a password field sharing a Compose view's id) never keeps another field's undo (R9).
+        val sameField = restarting && key == fieldKey && autocorrectOn
         if (!sameField) kept.clear()
         val u = undo
         if (!sameField || u == null || u.at < 0 || info.initialSelStart != u.at || info.initialSelEnd != u.at) undo = null
@@ -263,6 +264,10 @@ class KeysService : InputMethodService(), KeyListener {
     override fun onDeleteRepeat() {
         feedback.deleteRepeat(keyboard, vibrateOn)
         delete()
+    }
+    override fun onShiftLock() {
+        keyboard.shift = Shift.LOCKED
+        shiftByUser = true
     }
     override fun onSpaceLongPress() {
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
@@ -334,7 +339,9 @@ class KeysService : InputMethodService(), KeyListener {
         else { ic.deleteSurroundingText(len, 0); ic.setComposingText(word, 1) }
         composing.clear()
         composing.append(word)
-        wordIsName = !look.sentenceStart && word.first().isUpperCase() && !(word.length > 1 && word.none { it.isLowerCase() })
+        // Only where the box doesn't capitalise every word itself (subject lines, names): there the capital says nothing (R11).
+        val capsWords = (currentInputEditorInfo?.inputType ?: 0) and (InputType.TYPE_TEXT_FLAG_CAP_WORDS or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS) != 0
+        wordIsName = !capsWords && !look.sentenceStart && word.first().isUpperCase() && !(word.length > 1 && word.none { it.isLowerCase() })
     }
 
     /** Capitalised by the user mid-sentence: a name, never autocorrected. */
@@ -543,7 +550,9 @@ class KeysService : InputMethodService(), KeyListener {
     }
 
     private fun learn(word: String) {
-        if (learnOn) userWords.record(word)
+        // "im", "ive" and the like are learned only by taking the fix back (the undo records them), never just by
+        // typing them where autocorrect is off (R12).
+        if (learnOn && !(!autocorrectOn && Dictionary.fixesToI(word))) userWords.record(word)
     }
 
     /** Keep the user's capitalisation: "Hello" -> "Hello", "HELLO" -> "HELLO". */

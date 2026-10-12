@@ -11,7 +11,7 @@ Version 0.2.2 (versionCode 5) as decided in `docs/KEYS-0.2.2-PLAN.md` (slice 5, 
 |---|---|---|---|
 | 0 | Preflight | done | tree clean, 8 commits ahead of origin; gh signed in; both devices connected; emulators scarlet_phone, scarlet_small, scarlet_tablet |
 | 1 | Audit | done | release manifest permissions match 0.2.1 (VIBRATE, receiver permission); allowBackup false; four agents (spec, rules, manifest, data); 9 findings, 4 questions; the rotation answer had its own slice check |
-| 2 | Code review | pending | |
+| 2 | Code review | done | five agents (typing, storage, UI, security, Android pass); 12 findings, 3 questions; the R10 answer had its own slice check (clean, two notes fixed); 49 unit tests, lint no errors |
 | 3 | Cleanup | pending | |
 | 4 | QA | pending | |
 | 5 | Smoke test | pending | |
@@ -34,6 +34,20 @@ Version 0.2.2 (versionCode 5) as decided in `docs/KEYS-0.2.2-PLAN.md` (slice 5, 
 | D1 | 1 | mechanical + question | WordStore.save, UserWords | the key was replaced after any 3 failed saves, disk errors included, and a failed retry could strand the list | only seal failures count; Q2: safe rotation (key generations, old keys retired after a good save); slice check clean, one gap fixed (retire after every good save) | stage 1 |
 | D2 | 1 | mechanical | WordStore.load | words from the file skipped the typing rule (a downgrade could leave a control character in a word) | cleaned and checked like typed words | stage 1 |
 | D3 | 1 | mechanical | WordStore.clear | a folder that couldn't be listed counted as no set-aside files | Forget fails then | stage 1 |
+| R1 | 2 | mechanical | KeyboardView a11y, KeysService | caps lock unreachable with TalkBack (two Shift taps within 350 ms) | TalkBack long press on Shift turns caps lock on | stage 2 |
+| R2 | 2 | mechanical | KeyboardView rows setter | TalkBack focus dropped on every field restart, not only on a layout change | acts only on a real change | stage 2 |
+| R3 | 2 | mechanical | SettingsActivity | Forget state lived inside the main page: opening Licenses or Tuning mid-Forget reset it | moved above the pages | stage 2 |
+| R4 | 2 | mechanical | SettingsActivity Theme and Key height rows | at 200% text the pills squeezed and their labels broke | the rows wrap (FlowRow) | stage 2 |
+| R5 | 2 | mechanical | SettingsActivity onCreate | every rotation showed a blank frame while preferences reloaded | after the first load in a process, it draws at once from memory | stage 2 |
+| R6 | 2 | mechanical | WordStore.save | a disk failure (seal worked) didn't reset the seal-failure count | reset | stage 2 |
+| R7 | 2 | mechanical | WordStore.load | no size limit before reading the list file | a file over 1 MB is set aside unread | stage 2 |
+| R8 | 2 | mechanical | WordStore | use counts could overflow | capped at 1,000,000 | stage 2 |
+| R9 | 2 | mechanical | KeysService.configureFor | undo could carry into a restarted field without autocorrect (Compose fields share an id) | dropped there | stage 2 |
+| R10 | 2 | question | WordStore locks | typing could wait on the disk and Keystore (one lock) | Q5: two locks; slice check clean | stage 2 |
+| R11 | 2 | question | KeysService.takeUp | a picked-up word was a name in boxes that capitalise every word | Q6: not in those boxes | stage 2 |
+| R12 | 2 | question | Suggest, KeysService.learn | "im" typed twice where autocorrect is off stopped the I'm fix for good | Q7: only taking it back counts | stage 2 |
+| R13 | 2 | mechanical | WordStore.save, UserWords | the Keystore was asked to retire keys after every save | only when more than one key exists | stage 2 |
+| R14 | 2 | noted | SuggestTest.fastEnoughPerKeystroke | the 50 ms speed check failed once (60 ms) while two builds and lint ran alongside; alone: 21 ms and 20 ms | QA runs the tests on their own | |
 
 ## Questions
 
@@ -54,6 +68,19 @@ release.ps1 names the keystore file and alias (no password). Options: keep (reco
 ### Q4 (audit, B3)
 Medicine brand names in tools/dict/extra.dict. Options: keep (recommended), or remove the six.
 **Answer (2026-10-12):** "I dont actually use any one of those in my daily life, so if any makes an inference from it, they'll trip themselves up instead, which i like the sound of. Keep them"
+
+### Q5 (review, R10)
+Typing can wait while the learned-words file is saved or read (one lock). Options: fix now (recommended), or a later version.
+**Answer (2026-10-12):** "Fix now (Recommended)"
+**Follow-up:** two locks: memory (brief) and files/Keystore; saves copy the list, then seal and write without the memory lock; Forget still holds the file lock throughout. Tests: wordsTypedDuringASaveStayUnsaved and the existing Forget tests.
+
+### Q6 (review, R11)
+A picked-up capitalised word counted as a name even where the box capitalises every word. Options: not in Capitalise-words boxes (recommended), or never for picked-up words.
+**Answer (2026-10-12):** "Not in Capitalise-words boxes (Recommended)"
+
+### Q7 (review, R12)
+"im" learned by typing it where autocorrect is off stops the I'm fix. Options: only taking it back counts (recommended), or leave as is.
+**Answer (2026-10-12):** "Only taking it back counts (Recommended)"
 
 ## Ship
 

@@ -24,6 +24,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
@@ -87,20 +89,30 @@ import com.thescarletcoder.scarlet.ThemeChoice
 import com.thescarletcoder.scarlet.TuningPanel
 import com.thescarletcoder.scarlet.Tunables
 
+@OptIn(ExperimentalLayoutApi::class)
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG) StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().penaltyLog().build())
         // Settings, tuning values and "Recent fields" are read on a background thread, then the page is drawn (Q14).
         // Until then the window shows its plain background (light or dark with the system), never a wrong value.
+        // After the first time in this process everything is in memory, so a rotation, fold or resize draws at once (R5).
+        warm?.let { (prefs, fields) -> show(prefs, fields); return }
         lifecycleScope.launch {
-            val (prefs, fields) = withContext(Dispatchers.IO) {
-                val prefs = KeysPrefs(this@SettingsActivity).also { it.preload() }
+            val loaded = withContext(Dispatchers.IO) {
+                // The app's context, not this screen's: the settings object outlives this screen (kept below).
+                val prefs = KeysPrefs(applicationContext).also { it.preload() }
                 KeysTuning.init(this@SettingsActivity)
                 prefs to (if (BuildConfig.TUNING) FieldLog.read(this@SettingsActivity) else emptyList())
             }
-            show(prefs, fields)
+            warm = loaded
+            show(loaded.first, loaded.second)
         }
+    }
+
+    private companion object {
+        /** Set once preferences and tuning are loaded in this process: the settings and "Recent fields" as read then. */
+        @Volatile var warm: Pair<KeysPrefs, List<String>>? = null
     }
 
     private fun show(prefs: KeysPrefs, fields: List<String>) {
@@ -118,6 +130,13 @@ class SettingsActivity : ComponentActivity() {
                 enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
             }
             var tuning by remember { mutableStateOf(false) }
+            // Learned words: up here, outside the pages, so opening Tuning or the licenses doesn't reset a Forget in
+            // progress or its result (R3). Nothing shows until the store has been read off the main thread (K5).
+            var status by remember { mutableStateOf<UserWords.Status?>(null) }
+            LaunchedEffect(Unit) { words.loadAsync { status = it } }
+            var forgetting by remember { mutableStateOf(false) }
+            var forgetResult by rememberSaveable { mutableStateOf<String?>(null) } // survives rotation
+            var forgetFailed by rememberSaveable { mutableStateOf(false) } // keeps the pill to try again
             // Saved across rotation and theme changes, so the page that's open stays open.
             var licenses by rememberSaveable { mutableStateOf(false) }
             var readingIndex by rememberSaveable { mutableIntStateOf(-1) }
@@ -197,12 +216,6 @@ class SettingsActivity : ComponentActivity() {
                         prefs.learn, p, inter,
                     ) { prefs.learn = it }
                     // The list's state, if there's anything to say (Q2, Q12). Forget clears every case and starts a new list.
-                    // Nothing shows until the store has been read off the main thread (K5).
-                    var status by remember { mutableStateOf<UserWords.Status?>(null) }
-                    LaunchedEffect(Unit) { words.loadAsync { status = it } }
-                    var forgetting by remember { mutableStateOf(false) }
-                    var forgetResult by rememberSaveable { mutableStateOf<String?>(null) } // survives rotation
-                    var forgetFailed by rememberSaveable { mutableStateOf(false) } // keeps the pill to try again
                     val notice = status?.notice ?: WordStore.Notice.NONE
                     val count = status?.count ?: 0
                     val noticeText = when (notice) {
@@ -227,7 +240,8 @@ class SettingsActivity : ComponentActivity() {
 
                 Section("Feel", p, inter) {
                     Text("Theme", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
-                    Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Wraps onto a second line at large text sizes instead of squeezing the pills (R4).
+                    FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         listOf(ThemeChoice.SYSTEM to "System", ThemeChoice.DARK to "Dark", ThemeChoice.LIGHT to "Light").forEach { (c, name) ->
                             Pill(name, choice == c, p, inter, choice = true) {
                                 choice = c; prefs.theme = c
@@ -240,7 +254,8 @@ class SettingsActivity : ComponentActivity() {
                     var h by remember { mutableIntStateOf(prefs.keyHeight) }
                     Text("Key height", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
                     val compact = Compact.isCompact(this@SettingsActivity)
-                    Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Wraps onto a second line at large text sizes instead of squeezing the pills (R4).
+                    FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         (if (compact) listOf(44 to "Small", 50 to "Medium", 58 to "Large") else listOf(56 to "Small", 64 to "Medium", 76 to "Large"))
                             .forEach { (dp, name) -> Pill(name, h == dp, p, inter, choice = true) { h = dp; prefs.keyHeight = dp } }
                     }
@@ -355,6 +370,7 @@ private object NoKeys : KeyListener {
     override fun onAlt(text: String) = Unit
     override fun onDeleteRepeat() = Unit
     override fun onSpaceLongPress() = Unit
+    override fun onShiftLock() = Unit
 }
 
 @Composable

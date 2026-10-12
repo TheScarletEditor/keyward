@@ -4,6 +4,8 @@ kotlin = "2.1.21"
 composeBom = "2025.05.01"
 activityCompose = "1.10.1"
 coreKtx = "1.16.0"
+# 1.1.0 is what the TalkBack checks ran on; 1.2.0 exists (the owner kept 1.1.0, FINALIZE-0.2.2 Q11).
+customview = "1.1.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -12,6 +14,7 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeB
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-foundation = { module = "androidx.compose.foundation:foundation" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
+androidx-customview = { module = "androidx.customview:customview", version.ref = "customview" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

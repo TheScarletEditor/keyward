@@ -6,7 +6,7 @@ Owner-reported bugs and wants waiting for a version. Nothing here is scheduled u
 
 Owner's words: "backspacing twice in a row removes the spaces between prior words. Adding a period sometimes erases the word it punctuates. The letter i doesnt autocorrect midsentence."
 
-| # | Bug | Cause and fix (see `KEYS-0.2.2-PLAN.md` slices 0b and 0c) |
+| # | Bug | First guess, before fixing (real causes and fixes: `KEYS-0.2.2-PLAN.md` slices 0b and 0c) |
 |---|---|---|
 | KB-1 | Two backspaces in a row remove the spaces between earlier words, not just characters. | The backspace-into-word re-edit and the one-backspace autocorrect undo: a second backspace may be read as "undo" again, or the re-edit may replace a range wider than the word. |
 | KB-2 | Typing a period sometimes erases the word it ends. | The autocorrect commit on punctuation ("undo survives punctuation"): the composing word may be replaced by an empty or stale suggestion when the period commits it. "Sometimes" suggests it depends on whether a suggestion was showing. |

@@ -166,10 +166,14 @@ Owner, 2026-10-12: "Macbook tried to autocorrect. Does Keys not recognize brands
 
 Owner, on L3-4: "Move them off too". StrictMode in Settings (debug) still shows the preference files read on the main thread: `KeysPrefs` (the settings), `KeysTuning`/`Tunables` (tuning values) and `FieldLog` ("Recent fields", debug builds only).
 
-- Read them on a background thread before Settings draws its rows; until then the page shows only the header (no flash of wrong values).
+- Read them on a background thread before Settings draws anything; until then the window shows its plain background, light or dark with the system (no flash of wrong values).
 - Writes from Settings (toggles, theme, key height) go through `apply()` already (asynchronous); check none use `commit()`.
 - The keyboard service reads the same preferences; it is out of this slice unless StrictMode shows its reads on the keyboard's main thread too (then a question).
 - Checks: StrictMode (debug build) shows no disk read or write on the main thread when Settings opens, scrolls, toggles a setting and opens Tuning and the licenses; rotation keeps every value; the emulator walk in light and dark.
+
+**Done 2026-10-12.** `SettingsActivity` reads the settings (`KeysPrefs.preload`), the tuning values and "Recent fields" on a background thread, then draws the page. Every write was already `apply()`. 39 unit tests, lint no errors. Emulator (debug build, StrictMode on): opening Settings, scrolling, flipping a switch twice, Tuning, the licenses, two rotations and typing with the keyboard in "Try it": no violation from Keys' process (the only ones logged came from YouTube Music, another app). A switch turned off stayed off through two rotations. The keyboard's own reads showed no violations, so nothing for the service (no question needed).
+
+`/finalize --slice`: one review round, clean. Notes, no change: "Recent fields" (tuning builds only) is read once per opening of Settings, so it no longer refreshes on return from Tuning; each rotation redraws after a reload from memory (a frame or two of plain background).
 
 ### Slice 4: accessibility (K4)
 

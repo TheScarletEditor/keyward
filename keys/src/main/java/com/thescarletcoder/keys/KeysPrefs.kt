@@ -47,6 +47,9 @@ class KeysPrefs(private val context: Context) {
         get() = p.getBoolean("ready_shown", false)
         set(v) = p.edit().putBoolean("ready_shown", v).apply()
 
+    /** Read the file now (call off the main thread); every read after this is from memory. */
+    fun preload() { p.all }
+
     fun listen(l: SharedPreferences.OnSharedPreferenceChangeListener) = p.registerOnSharedPreferenceChangeListener(l)
     fun unlisten(l: SharedPreferences.OnSharedPreferenceChangeListener) = p.unregisterOnSharedPreferenceChangeListener(l)
 

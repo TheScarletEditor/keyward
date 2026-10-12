@@ -67,6 +67,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.lifecycle.repeatOnLifecycle
@@ -83,9 +87,20 @@ class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG) StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().penaltyLog().build())
-        val prefs = KeysPrefs(this)
-        KeysTuning.init(this)
-        // Loaded off the main thread below (K5).
+        // Settings, tuning values and "Recent fields" are read on a background thread, then the page is drawn (Q14).
+        // Until then the window shows its plain background (light or dark with the system), never a wrong value.
+        lifecycleScope.launch {
+            val (prefs, fields) = withContext(Dispatchers.IO) {
+                val prefs = KeysPrefs(this@SettingsActivity).also { it.preload() }
+                KeysTuning.init(this@SettingsActivity)
+                prefs to (if (BuildConfig.TUNING) FieldLog.read(this@SettingsActivity) else emptyList())
+            }
+            show(prefs, fields)
+        }
+    }
+
+    private fun show(prefs: KeysPrefs, fields: List<String>) {
+        // Learned words are read off the main thread below (K5).
         val words = UserWords.get(this)
         val inter = FontFamily(Font(R.font.inter_regular, FontWeight.Normal), Font(R.font.inter_medium, FontWeight.Medium))
         val fraunces = FontFamily(Font(R.font.fraunces_display))
@@ -252,7 +267,7 @@ class SettingsActivity : ComponentActivity() {
                 if (BuildConfig.TUNING) {
                     // Which fields asked for what (the owner, 2026-10-09: number fields don't always open the number pad).
                     Section("Recent fields", p, inter) {
-                        val rows = remember { FieldLog.read(this@SettingsActivity) }
+                        val rows = fields
                         if (rows.isEmpty()) Text("Open a few text boxes, then come back.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)
                         rows.forEach { Text(it, color = Color(p.text), fontSize = 14.sp, fontFamily = inter) }
                     }

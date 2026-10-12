@@ -14,7 +14,7 @@ Version 0.2.2 (versionCode 5) as decided in `docs/KEYS-0.2.2-PLAN.md` (slice 5, 
 | 2 | Code review | done | five agents (typing, storage, UI, security, Android pass); 12 findings, 3 questions; the R10 answer had its own slice check (clean, two notes fixed); 49 unit tests, lint no errors |
 | 3 | Cleanup | done | /simplify (reuse, simplification, efficiency, altitude agents); no TODOs, commented-out code or unused resources added; TUNING false in release; release notes drafted (Q8), README line (Q9), C1 answered (Q10); 49 unit tests, lint no errors |
 | 4 | QA | done | pass 3 after S1 (stage 5): clean (49 tests, no lint errors or new warnings, three builds, release APK checks unchanged). Pass 1: QA1 fixed, QA2 asked (Q11); pass 2 clean: 49 release unit tests, lintRelease no errors and no new warnings, release/personal/smoke built, release APK 0.2.2 (5), not debuggable, permissions as 0.2.1, 4,524,313 bytes (0.2.1: 4,451,441, +1.6%), license texts in assets/licenses (C2 done) |
-| 5 | Smoke test | pending | |
+| 5 | Smoke test | running | Part 1 done (below); Part 2: the owner's checklist |
 | 6 | Ship | pending | |
 | 7 | Wrap-up | pending | |
 
@@ -106,6 +106,18 @@ Add "Works with TalkBack: every key, suggestion and setting is spoken." to the R
 ### Q11 (QA, QA2)
 customview 1.2.0 exists; 1.1.0 is what the TalkBack checks ran on. Options: keep 1.1.0 (recommended), or upgrade.
 **Answer (2026-10-12):** "Keep 1.1.0 (Recommended)"
+
+## Smoke test, Part 1 (emulators, 2026-10-12)
+
+Smoke copy (release-optimized, `com.thescarletcoder.keys.smoke`) on scarlet_phone, scarlet_small (text 1.3x) and scarlet_tablet, light and dark. Screenshots: The Scarlet Raven `screenshots/2026-10-12-keys-0.2.2/` (phone, small, tablet; settings, keyboard, licenses, license text; phone also 200% text).
+
+- Upgrade (regular app id, personal builds): 0.2.1 built from its tag learned 3 words with Dark, Large keys, bubble off; 0.2.2 installed over it kept all of them.
+- Typing in the smoke copy: two backspaces keep spaces; a period keeps its word; "i" to "I", "im" to "I'm", "i.e." left alone; "Macbook" with Shift left alone; "i" shows "I" without a highlight (Q10).
+- Licenses list and text, Forget, 200% text (choice rows wrap, R4), killed from home and reopened on the license page (it comes back to the page, at the top of the text).
+- No crashes on any emulator; the smoke copy logged nothing of its own (R8 strips logs).
+- S1 found and fixed (the preview's space-bar mark at 1.3x text on the small phone); QA pass 3 clean after it.
+- Not checked on screen: TalkBack caps lock (double-tap-and-hold can't be scripted with adb; tried, unreliable). Code-reviewed (R1); optional line in the owner's checklist.
+- Seen, not a Keys bug: on emulators, replacing or force-stopping the selected keyboard's package makes Android fall back to Gboard; on the owner's devices Keys has stayed selected through every install today.
 
 ## Ship
 

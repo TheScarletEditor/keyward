@@ -6,11 +6,12 @@ Owner-reported bugs and wants waiting for a version. Nothing here is scheduled u
 
 Owner's words: "backspacing twice in a row removes the spaces between prior words. Adding a period sometimes erases the word it punctuates. The letter i doesnt autocorrect midsentence."
 
-| # | Bug | First places to look (not yet reproduced) |
+| # | Bug | Cause and fix (see `KEYS-0.2.2-PLAN.md` slices 0b and 0c) |
 |---|---|---|
 | KB-1 | Two backspaces in a row remove the spaces between earlier words, not just characters. | The backspace-into-word re-edit and the one-backspace autocorrect undo: a second backspace may be read as "undo" again, or the re-edit may replace a range wider than the word. |
 | KB-2 | Typing a period sometimes erases the word it ends. | The autocorrect commit on punctuation ("undo survives punctuation"): the composing word may be replaced by an empty or stale suggestion when the period commits it. "Sometimes" suggests it depends on whether a suggestion was showing. |
 | KB-3 | A lone "i" is not corrected to "I" in the middle of a sentence. | Likely the same rule as D-020 ("im" to "I'm", already folded into 0.2.2): the always-capital I. Check whether lone "i" is skipped because it is a valid dictionary word or because mid-sentence words are never capitalized. |
+| KB-4 | "Macbook" gets autocorrected (2026-10-12): newer brand names are missing from the word list. | Fixed the same day, slice 0c (names list, and capitals mid-sentence taken as names). |
 
 Before fixing: reproduce each on an emulator and write a failing JVM test (SuggestTest or a new editing test). Never log typed text while debugging; the Recent fields diagnostic records field types only.
 

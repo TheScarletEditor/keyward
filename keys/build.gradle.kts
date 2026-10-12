@@ -94,15 +94,17 @@ tasks.matching { it.name.matches(Regex("process[A-Za-z]+MainManifest")) }.config
     }
 }
 
-// The word list ships as en.bin, built here from tools/dict/en.dict (the source, kept as text).
+// The word list ships as en.bin, built here from tools/dict/en.dict (the source, kept as text) plus tools/dict/extra.dict
+// (names the AOSP list predates).
 // Format (tools/dict/README.md): "SKD1", entry count, then entries sorted by lowercase word (ties: most frequent first).
 abstract class BuildDict : DefaultTask() {
     @get:InputFile abstract val source: RegularFileProperty
+    @get:InputFile abstract val extra: RegularFileProperty
     @get:OutputDirectory abstract val outputDir: DirectoryProperty
 
     @TaskAction fun run() {
         class E(val lower: String, val display: String, val freq: Int, val offensive: Boolean)
-        val entries = source.get().asFile.readLines().mapNotNull { line ->
+        val entries = (source.get().asFile.readLines() + extra.get().asFile.readLines()).mapNotNull { line ->
             val p = line.split('\t')
             if (p.size < 2) null else E(p[0].lowercase(), p[0], (p[1].toIntOrNull() ?: 0).coerceIn(0, 255), p.getOrNull(2) == "o")
         }.sortedWith(compareBy<E>({ it.lower }, { -it.freq }))
@@ -126,6 +128,7 @@ abstract class BuildDict : DefaultTask() {
 
 val buildDict = tasks.register<BuildDict>("buildDict") {
     source.set(rootProject.file("tools/dict/en.dict"))
+    extra.set(rootProject.file("tools/dict/extra.dict"))
     outputDir.set(layout.buildDirectory.dir("generated/dict"))
 }
 androidComponents {

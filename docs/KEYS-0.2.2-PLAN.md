@@ -79,6 +79,14 @@ Owner, 2026-10-12: "now fix the three typing bugs" (`docs/KEYS-BACKLOG.md`).
 - KB-3 and D-020: "i", "im", "i'm", "ive", "i've", "i'll", "i'd" always become "I", "I'm", "I've", "I'll", "I'd" (a rule ahead of the dictionary; "id" and "ill" stay words). One backspace still undoes it, and a word taken back is never corrected again in that field.
 - Checks: JVM test `iIsAlwaysCapital`; lint no new errors; the owner types on both devices (two quick backspaces after a word, a period right after a word, "i" mid-sentence, "im"). KB-1 and KB-2 have no JVM test (the editing code needs a real text field); the emulator walk for 0.2.2 repeats them.
 
+### Slice 0c: names (KB-4, added 2026-10-12, built third)
+
+Owner, 2026-10-12: "Macbook tried to autocorrect. Does Keys not recognize brands?" The AOSP list knows older names (iPhone, Samsung, Netflix) but predates MacBook, AirPods, Venmo, TikTok and others, so they looked like typos. Owner's picks (Q7): both.
+
+- `tools/dict/extra.dict`: a hand-kept list of newer names in the en.dict format, merged by `:keys:buildDict`. Modest frequencies (60 to 90) so a name never outranks a common word as a fix; names one slip from a common word (Ulta and "ultra") are left out. Typing "macbook" is left alone and "MacBook" is offered.
+- A word the user capitalises mid-sentence is taken as a name and never autocorrected (suggestions still show). A capital at the start of a sentence or the field says nothing. The "I" words are still fixed.
+- Checks: JVM tests `modernNamesAreKnown`, `capitalMidSentenceIsAName`, and `BinaryDictTest` with the merged list; the owner types "Macbook" mid-sentence and a capitalised made-up name.
+
 ### Slice 1: generic text and notices (K6, K7)
 
 - Replace the owner's name, pronouns, phone model and "the tablet" (where it means the owner's device) in comments, scripts and `CLAUDE.md` with neutral wording ("the owner", "the user", "a phone-width screen"), as Lyrics did on 2026-10-11. `CLAUDE.md` follows the Lyrics wording: folders "next to this one", "the backups it describes", no drive labels or script path.

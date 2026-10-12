@@ -52,6 +52,8 @@ class KeysService : InputMethodService(), KeyListener {
     private var numeric = false
 
     private val composing = StringBuilder()
+    /** The word being typed starts a sentence (or the field), so a capital on it says nothing about it being a name. */
+    private var wordStartsSentence = true
     private var autocorrectPick: String? = null
     private var pickFor: String? = null
     private var seq = 0
@@ -264,7 +266,7 @@ class KeysService : InputMethodService(), KeyListener {
                 val ic = currentInputConnection
                 // One batch, so the editor reports a single change and never a moment with no word being typed.
                 ic?.beginBatchEdit()
-                if (composing.isEmpty()) resumeWord()
+                if (composing.isEmpty() && !resumeWord()) wordStartsSentence = startsSentence(ic?.getTextBeforeCursor(16, 0))
                 composing.append(s)
                 ic?.setComposingText(composing, 1)
                 ic?.endBatchEdit()
@@ -294,6 +296,7 @@ class KeysService : InputMethodService(), KeyListener {
         if (n == 0 || n == before.length && before.length == MAX_WORD) return false   // no word, or longer than any word
         val word = before.substring(before.length - n).trimStart('\'')
         if (word.isEmpty()) return false
+        wordStartsSentence = startsSentence(before.substring(0, before.length - word.length))
         // Relative to where the cursor really is, never a remembered position: selection updates arrive late, and
         // two quick backspaces used to put the word over the wrong text, eating the spaces before it (KB-1).
         ic.beginBatchEdit()
@@ -304,6 +307,15 @@ class KeysService : InputMethodService(), KeyListener {
         composing.append(word)
         return true
     }
+
+    /** Nothing before, or the last thing before (spaces aside) ends a sentence or a line. Unknown counts as a start. */
+    private fun startsSentence(before: CharSequence?): Boolean {
+        val t = before?.toString()?.trimEnd(' ', '\t') ?: return true
+        return t.isEmpty() || t.last() in ".!?\n"
+    }
+
+    /** Capitalised by the user mid-sentence: a name (MacBook, Priya), never autocorrected. */
+    private fun looksLikeName(word: String) = !wordStartsSentence && word.firstOrNull()?.isUpperCase() == true
 
     /** Space or punctuation: the word is finished, so this is where autocorrect happens. */
     private fun separator(sep: String) {
@@ -433,13 +445,14 @@ class KeysService : InputMethodService(), KeyListener {
         val learnNow = learnOn
         val correctNow = autocorrectOn
         val keptNow = HashSet(kept)
+        val nameNow = looksLikeName(typed)
         worker.execute {
             val started = System.nanoTime()
             val boost: (String) -> Int = { if (learnNow) userWords.boost(it) else 0 }
             val learned = if (learnNow) userWords.learned else emptyList()
             val known = { w: String -> d.isKnown(w) || (learnNow && userWords.isKnown(w)) }
             val cands = d.candidates(typed, boost, learned)
-            val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned, cands)?.let { matchCase(typed, it) } else null
+            val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned, cands, nameNow)?.let { matchCase(typed, it) } else null
             val ranked = cands.map { matchCase(typed, it.word) }.distinct()
             val list = ArrayList<String>(3)
             val highlight: Int
@@ -469,7 +482,10 @@ class KeysService : InputMethodService(), KeyListener {
         if (pickFor == original) return autocorrectPick
         val d = dict ?: return null
         val known = { w: String -> d.isKnown(w) || (learnOn && userWords.isKnown(w)) }
-        return d.autocorrect(original, known, { if (learnOn) userWords.boost(it) else 0 }, if (learnOn) userWords.learned else emptyList())
+        return d.autocorrect(
+            original, known, { if (learnOn) userWords.boost(it) else 0 }, if (learnOn) userWords.learned else emptyList(),
+            name = looksLikeName(original),
+        )
             ?.let { matchCase(original, it) }
     }
 

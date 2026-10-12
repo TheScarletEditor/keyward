@@ -5,7 +5,7 @@ import kotlin.math.abs
 import kotlin.math.min
 
 /**
- * Offline dictionary (assets/en.bin, built from tools/dict/en.dict: AOSP LatinIME, Apache 2.0) plus a keyboard-aware corrector.
+ * Offline dictionary (assets/en.bin, built from tools/dict/en.dict: AOSP LatinIME, Apache 2.0; and tools/dict/extra.dict, newer names) with a keyboard-aware corrector.
  * Everything runs on the tablet. Nothing typed is stored here; learned words live in [UserWords].
  */
 class Dictionary private constructor(
@@ -93,16 +93,18 @@ class Dictionary private constructor(
      * Correction to apply when the word ends, or null to leave it alone. Gentle on purpose.
      * [ranked]: this word's [candidates] if the caller already has them (the keyboard does, for the strip), so the
      * dictionary is searched once per keystroke, not twice.
+     * [name]: the user capitalised this word themselves mid-sentence, so it's taken as a name and left alone
+     * (the "I" words still get fixed).
      */
     fun autocorrect(
         typed: String, known: (String) -> Boolean, userBoost: (String) -> Int, userWords: Collection<String>,
-        ranked: List<Candidate>? = null,
+        ranked: List<Candidate>? = null, name: Boolean = false,
     ): String? {
         val t = typed.lowercase()
         // The word "I" and its contractions: always capital, before the dictionary (which knows "i" as a word, and
         // ranks "in" above "I'm" for "im"). KB-3, D-020.
         I_WORDS[t]?.let { fixed -> return if (typed == fixed || typed == fixed.uppercase()) null else fixed }
-        if (t.length < 2 || known(t)) return null
+        if (name || t.length < 2 || known(t)) return null
         if (t.any { !it.isLetter() && it != '\'' }) return null
         val best = (ranked ?: candidates(t, userBoost, userWords)).firstOrNull { it.distance > 0f } ?: return null
         val limit = if (letters(t).length <= 4) 1.0f else 2.0f
@@ -147,7 +149,7 @@ class Dictionary private constructor(
             Dictionary(lower as Array<String>, display as Array<String>, freq, offensive)
         }
 
-        /** The text source (tools/dict/en.dict). Used by tests; the app ships the binary form. */
+        /** The text source (tools/dict/en.dict and extra.dict, one after the other). Used by tests; the app ships the binary form. */
         fun load(input: java.io.InputStream): Dictionary {
             val l = ArrayList<String>(170_000); val d = ArrayList<String>(170_000)
             val f = ArrayList<Int>(170_000); val o = ArrayList<Boolean>(170_000)

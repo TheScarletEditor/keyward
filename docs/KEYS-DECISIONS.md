@@ -2,6 +2,12 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, names)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q7 | Brand and product names Keys doesn't know (KB-4) | "Add a modern names list (Recommended),Trust capitals mid-sentence (Recommended)" | `tools/dict/extra.dict` merged at build time; a word capitalised mid-sentence is never autocorrected. Slice 0c. | `modernNamesAreKnown`, `capitalMidSentenceIsAName`, `BinaryDictTest`. |
+
 ## 2026-10-12 (the owner, landscape)
 
 | # | Question | Answer (word for word) | Effect | Check |

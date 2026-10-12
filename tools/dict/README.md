@@ -7,7 +7,9 @@ Offensive-flagged words are known (never autocorrected away) but never offered a
 ## What ships: `en.bin`
 
 The app ships a binary form, made at build time by the `:keys:buildDict` Gradle task (in `keys/build.gradle.kts`).
-Nothing to run by hand: every build regenerates it from `en.dict`.
+Nothing to run by hand: every build regenerates it from `en.dict` plus `extra.dict`.
+
+`extra.dict` (same format, hand-kept by this project, not from AOSP) adds names the AOSP list predates: brands, products and apps such as MacBook, AirPods and Venmo. Add a line when Keys tries to correct a name it should know. Rules are in the file's header.
 
 Layout (big-endian):
 

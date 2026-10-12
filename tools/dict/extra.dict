@@ -1,0 +1,54 @@
+# Names the AOSP list predates (brands, products, apps). Same format as en.dict: word, tab, frequency (0-255).
+# Lines without a tab (like these) are ignored. Merged with en.dict at build time (:keys:buildDict).
+# Only words made of letters and apostrophes (Keys ends a word at "-", "+" or "&"). Frequencies kept modest
+# (60 to 90) so a name never outranks a common word as an autocorrect target. Skip names that are a one-letter
+# slip from a common word (for example Ulta and "ultra"): knowing them would stop that typo being fixed.
+MacBook	90
+MacBooks	70
+macOS	80
+iPadOS	60
+watchOS	60
+iCloud	85
+iMessage	85
+FaceTime	85
+iPhones	80
+AirPods	90
+AirPod	70
+AirTag	70
+Uber	90
+Lyft	80
+Venmo	85
+Zelle	75
+Airbnb	85
+DoorDash	85
+Grubhub	70
+Instacart	75
+TikTok	90
+Reddit	90
+Etsy	80
+Shopify	70
+Roku	75
+Fitbit	80
+Peloton	70
+OneDrive	70
+ChatGPT	80
+Lululemon	70
+Chipotle	80
+Sephora	75
+Wayfair	70
+Shein	65
+Motrin	65
+Aleve	65
+Zyrtec	65
+Claritin	65
+Sudafed	65
+Ozempic	70
+Xfinity	75
+Nvidia	75
+Rivian	60
+Bluesky	70
+Tumblr	75
+Squarespace	65
+GitHub	75
+Fortnite	75
+Roblox	80

@@ -5,13 +5,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
-import java.io.File
 
 /** Runs the real dictionary on the laptop JVM. Synthetic words only. */
 class SuggestTest {
     companion object {
         lateinit var dict: Dictionary
-        @BeforeClass @JvmStatic fun load() { dict = Dictionary.load(File("../tools/dict/en.dict").inputStream()) }
+        @BeforeClass @JvmStatic fun load() { dict = Dictionary.load(TestDict.source()) }
     }
 
     private fun fix(w: String) = dict.autocorrect(w, { dict.isKnown(it) }, { 0 }, emptyList())
@@ -36,6 +35,19 @@ class SuggestTest {
         assertEquals("I'll", fix("i'll"))
         assertEquals("I'd", fix("i'd"))
         listOf("I", "I'm", "I'M", "id", "ill").forEach { assertNull(it, fix(it)) }
+    }
+
+    @Test fun modernNamesAreKnown() {
+        listOf("macbook", "Macbook", "MacBook", "airpods", "uber", "venmo", "TikTok").forEach { assertNull(it, fix(it)) }
+        val c = dict.candidates("macbook", { 0 }, emptyList()).map { it.word }
+        assertTrue(c.toString(), "MacBook" in c)
+    }
+
+    @Test fun capitalMidSentenceIsAName() {
+        // A typo-looking word the user capitalised mid-sentence is left alone; the same word lowercase is fixed.
+        assertEquals("the", fix("teh"))
+        assertNull(dict.autocorrect("Teh", { dict.isKnown(it) }, { 0 }, emptyList(), name = true))
+        assertEquals("I'm", dict.autocorrect("Im", { dict.isKnown(it) }, { 0 }, emptyList(), name = true))
     }
 
     @Test fun completionsOffered() {

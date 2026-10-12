@@ -13,20 +13,25 @@ import java.io.File
 class WordStoreTest {
     @get:Rule val tmp = TemporaryFolder()
 
-    /** Stand-in for AES-GCM: a marker byte, then the bytes flipped. A wrong marker is "can never be read". */
+    /**
+     * Stand-in for AES-GCM: a marker byte, the key generation, then the bytes flipped. A wrong marker or a generation
+     * that no longer exists is "can never be read".
+     */
     private class FakeSealer : WordStore.Sealer {
         var passingErrors = 0
-        var brokenKey = false
-        var resets = 0
-        override fun reset() { resets++; brokenKey = false }
+        val keys = mutableListOf(1) // generations that exist, newest last
+        var brokenKey = false // the newest key can't seal
+        var rotations = 0
+        override fun rotate(): Boolean { rotations++; keys += keys.last() + 1; brokenKey = false; return true }
+        override fun retireOld() { val k = keys.last(); keys.clear(); keys += k }
         override fun seal(plain: ByteArray): ByteArray {
             if (brokenKey) throw IllegalStateException("key unusable")
-            return byteArrayOf(MARK) + plain.map { (it.toInt() xor 0x5A).toByte() }
+            return byteArrayOf(MARK, keys.last().toByte()) + plain.map { (it.toInt() xor 0x5A).toByte() }
         }
         override fun open(sealed: ByteArray): ByteArray {
             if (passingErrors > 0) { passingErrors--; throw IllegalStateException("key store busy") }
-            if (sealed.isEmpty() || sealed[0] != MARK) throw WordStore.Unreadable()
-            return sealed.drop(1).map { (it.toInt() xor 0x5A).toByte() }.toByteArray()
+            if (sealed.size < 2 || sealed[0] != MARK || sealed[1].toInt() !in keys) throw WordStore.Unreadable()
+            return sealed.drop(2).map { (it.toInt() xor 0x5A).toByte() }.toByteArray()
         }
         companion object { const val MARK: Byte = 7 }
     }
@@ -113,14 +118,45 @@ class WordStoreTest {
         assertTrue(stuck.clear()); assertEquals(WordStore.Notice.NONE, stuck.notice)
     }
 
-    @Test fun aKeyThatFailsEverySaveIsReplacedAndNothingIsLost() {
+    @Test fun aKeyThatFailsEverySaveIsRotatedAndNothingIsLost() {
         val s = store(); s.load()
-        repeat(2) { s.record("zorbex") }
+        repeat(2) { s.record("zorbex") }; s.save()
+        s.record("quillet")
         sealer.brokenKey = true
         repeat(WordStore.MAX_PASSING) { s.save() }
-        assertEquals(1, sealer.resets)
-        // Written with the new key in the same call: nothing waits for a later save.
-        val t = store(); t.load(); assertTrue(t.isKnown("zorbex"))
+        assertEquals(1, sealer.rotations)
+        assertEquals("old key retired once the list is saved with the new one", listOf(2), sealer.keys)
+        val t = store(); t.load(); assertTrue(t.isKnown("zorbex")); assertEquals(2, t.count)
+    }
+
+    @Test fun diskFailuresNeverReplaceTheKey() {
+        val s = store(move = { _, _ -> false }); s.load()
+        s.record("zorbex")
+        repeat(WordStore.MAX_PASSING * 2) { s.save() }
+        assertEquals(0, sealer.rotations)
+    }
+
+    @Test fun aRotationWhoseSaveFailsStrandsNothing() {
+        var diskOk = true
+        val s = store(move = { a, b -> diskOk && a.renameTo(b) }); s.load()
+        repeat(2) { s.record("zorbex") }; s.save()
+        sealer.brokenKey = true
+        s.record("quillet")
+        repeat(WordStore.MAX_PASSING - 1) { s.save() }
+        diskOk = false
+        s.save() // rotates, but the save with the new key fails on disk
+        assertEquals(listOf(1, 2), sealer.keys)
+        val t = store(); t.load(); assertTrue("the old file still opens with the old key", t.isKnown("zorbex"))
+        diskOk = true
+        s.save() // later save with the new key: then the old key goes
+        assertEquals(listOf(2), sealer.keys)
+        val u = store(); u.load(); assertTrue(u.isKnown("zorbex")); assertEquals(2, u.count)
+    }
+
+    @Test fun strayCharactersInTheFileAreCleaned() {
+        writeList(format1("zorbex\t2\n\u0001quillet\t3\nbad word\t2\nx\t5"))
+        val s = store(); s.load()
+        assertTrue(s.isKnown("quillet")); assertEquals(2, s.count)
     }
 
     @Test fun fileWordsAreOlderThanWordsTypedBeforeTheLoad() {

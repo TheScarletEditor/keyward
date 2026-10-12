@@ -12,7 +12,7 @@ class LicensesTest {
     private val listed = Licenses.parts.map { it.asset }
 
     @Test fun everyRepoLicenseIsListedAndBuilt() {
-        val repo = File("../licenses").listFiles()!!.filter { it.isFile }.map { "licenses/${it.name}" } + "licenses/LICENSE"
+        val repo = File("../licenses").listFiles()!!.filter { it.isFile && it.extension == "txt" }.map { "licenses/${it.name}" } + "licenses/LICENSE"
         repo.forEach { path ->
             assertTrue("$path is not in Licenses.parts", path in listed)
             assertTrue("$path is missing from the APK assets", File(built, path).isFile)

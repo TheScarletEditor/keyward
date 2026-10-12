@@ -30,8 +30,13 @@ class WordStore(
     interface Sealer {
         fun seal(plain: ByteArray): ByteArray
         fun open(sealed: ByteArray): ByteArray
-        /** Replace the key with a new one. Only called when no readable file depends on it. */
-        fun reset() {}
+        /**
+         * Make a new key and use it for every seal from now on; older keys stay, so [open] can still read a file sealed
+         * with one of them (A-D1). True when the new key exists.
+         */
+        fun rotate(): Boolean = false
+        /** Delete every key but the newest. Only called once the list is saved with the newest. */
+        fun retireOld() {}
     }
 
     /** The file can't be read, now or later: wrong or lost key, damaged or cut-short file. */
@@ -57,7 +62,10 @@ class WordStore(
 
     private val file get() = File(dir, "words.enc")
     private val tmp get() = File(dir, "words.tmp")
-    private fun setAsideFiles() = dir.listFiles { f -> f.name == "words.unreadable" || f.name.startsWith("words.unreadable-") }.orEmpty().toList()
+    private fun setAsideFiles() = setAsideFilesOrNull().orEmpty()
+    /** Null when the folder couldn't be listed (an I/O error): Forget must not report success then (A-D3). */
+    private fun setAsideFilesOrNull() =
+        dir.listFiles { f -> f.name == "words.unreadable" || f.name.startsWith("words.unreadable-") }?.toList()
 
     /** A word counts as "known" once used twice. */
     @Synchronized fun isKnown(word: String) = (counts[word.lowercase()] ?: 0) >= 2
@@ -86,7 +94,7 @@ class WordStore(
     fun record(word: String) {
         if (state == State.REFUSED) return
         val w = word.lowercase()
-        if (w.length < 2 || w.length > MAX_LETTERS || w.any { !it.isLetter() && it != '\'' }) return
+        if (!learnable(w)) return
         // Moved to the end: most recently used. The list may pass the cap until the next save trims it (off the typing path).
         counts[w] = (counts.remove(w) ?: 0) + 1
         dirty = true
@@ -124,10 +132,11 @@ class WordStore(
         text.lineSequence().forEach { line ->
             val i = line.lastIndexOf('\t')
             val n = if (i > 0) line.substring(i + 1).toIntOrNull() else null
-            if (i > 0 && n != null && n > 0) {
-                val w = line.substring(0, i)
-                counts[w] = (counts[w] ?: 0) + n
-            } // a bad count line is skipped, never read as 0 (3)
+            // The same rule as typing (A-D2): a word an older or newer build wrote with stray characters (a 0.2.1 build
+            // reading this format keeps the format byte in the first word) is cleaned or skipped, never suggested.
+            val w = if (i > 0) line.substring(0, i).filter { it >= ' ' }.lowercase() else ""
+            if (n != null && n > 0 && learnable(w)) counts[w] = (counts[w] ?: 0) + n
+            // a bad count line is skipped, never read as 0 (3)
         }
         typed.forEach { (w, n) -> counts[w] = (counts.remove(w) ?: 0) + n }
         trim()
@@ -140,25 +149,41 @@ class WordStore(
         if (!dirty || state != State.LOADED || !unlocked()) return
         trim()
         val body = byteArrayOf(FORMAT.toByte()) + counts.entries.joinToString("\n") { "${it.key}\t${it.value}" }.toByteArray(Charsets.UTF_8)
-        if (write(body)) { saveFailures = 0; return }
-        // A key that fails every time is broken. Everything in the file is in memory (the file was read), so a new key
-        // loses nothing, provided the list is written with it before this call ends: the old file can't be read after.
+        when (write(body)) {
+            Write.OK -> { saveFailures = 0; retireOld(); return }
+            Write.DISK_FAILED -> return // a full disk or a failed rename says nothing about the key
+            Write.SEAL_FAILED -> {}
+        }
+        // A key that fails to seal every time is broken. Safe rotation (A-D1, Q16): a new key next to the old one, the
+        // list sealed with it, and the old key deleted only once that file is in place. Reading tries every key, so a
+        // failure at any step strands nothing.
         if (++saveFailures >= MAX_PASSING && !keyReplaced) {
             saveFailures = 0
             keyReplaced = true
-            if (runCatching { sealer.reset() }.isSuccess) write(body)
+            if (runCatching { sealer.rotate() }.getOrDefault(false) && write(body) == Write.OK) retireOld()
         }
     }
 
-    /** Temp file, synced, then a checked rename. True when the new list is in place; dirty is cleared then. */
-    private fun write(body: ByteArray): Boolean = try {
-        // On the disk before the rename, so a power cut can't leave an empty list in its place.
-        java.io.FileOutputStream(tmp).use { out -> out.write(sealer.seal(body)); out.fd.sync() }
-        if (move(tmp, file)) { dirty = false; true } else { tmp.delete(); false }
-    } catch (e: Exception) {
-        tmp.delete() // stays dirty: the next save tries again
-        false
+    private enum class Write { OK, SEAL_FAILED, DISK_FAILED }
+
+    /** Sealed, then a temp file, synced, then a checked rename. Dirty is cleared only when the new list is in place. */
+    private fun write(body: ByteArray): Write {
+        val sealed = try { sealer.seal(body) } catch (e: Exception) { return Write.SEAL_FAILED }
+        return try {
+            // On the disk before the rename, so a power cut can't leave an empty list in its place.
+            java.io.FileOutputStream(tmp).use { out -> out.write(sealed); out.fd.sync() }
+            if (move(tmp, file)) { dirty = false; Write.OK } else { tmp.delete(); Write.DISK_FAILED }
+        } catch (e: Exception) {
+            tmp.delete() // stays dirty: the next save tries again
+            Write.DISK_FAILED
+        }
     }
+
+    /**
+     * After every good save: the file is sealed with the newest key, so older keys hold nothing (a rotation that was
+     * cut short, even in an earlier run, is finished here). Nothing to do when there's one key.
+     */
+    private fun retireOld() { runCatching { sealer.retireOld() } }
 
     /**
      * "Forget learned words": every copy on disk, then memory, all under the same lock, so a keyboard save can't run in
@@ -167,13 +192,16 @@ class WordStore(
      */
     @Synchronized
     fun clear(): Boolean {
-        val gone = (listOf(tmp) + setAsideFiles() + file).all { !it.exists() || delete(it) }
+        val aside = setAsideFilesOrNull() ?: return false.also { if (state == State.LOADED) dirty = true }
+        val gone = (listOf(tmp) + aside + file).all { !it.exists() || delete(it) }
         if (!gone) { if (state == State.LOADED) dirty = true; return false }
         counts.clear()
         dirty = false
         state = State.LOADED; refusedNewer = false; passingFailures = 0
         return true
     }
+
+    private fun learnable(w: String) = w.length in 2..MAX_LETTERS && w.all { it.isLetter() || it == '\'' }
 
     private fun setAsideFile() {
         // Never overwrite a list set aside earlier: the next free name.

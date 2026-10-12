@@ -73,41 +73,75 @@ class UserWords private constructor(context: Context) {
     private val io = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
 
-    /** AES-GCM with a Keystore key; the 12-byte IV goes first. */
+    /**
+     * AES-GCM with a Keystore key; the 12-byte IV goes first. Keys come in generations ([ALIAS] is the first, then
+     * "_g2", "_g3"...): sealing uses the newest, opening tries each from the newest down, so a file sealed before a
+     * rotation still opens until the old key is retired (A-D1).
+     */
     private object KeystoreSealer : WordStore.Sealer {
+        private fun store() = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+
+        private fun generation(alias: String): Int = when {
+            alias == ALIAS -> 1
+            alias.startsWith("$ALIAS_PREFIX$GEN") -> alias.removePrefix("$ALIAS_PREFIX$GEN").toIntOrNull() ?: 0
+            else -> 0
+        }
+
+        private fun aliasFor(gen: Int) = if (gen == 1) ALIAS else "$ALIAS_PREFIX$GEN$gen"
+
+        /** Existing key aliases of this store, newest first. */
+        private fun aliases(ks: KeyStore): List<String> =
+            ks.aliases().toList().filter { generation(it) > 0 }.sortedByDescending { generation(it) }
+
         override fun seal(plain: ByteArray): ByteArray {
+            val ks = store()
+            val alias = aliases(ks).firstOrNull() ?: ALIAS
             val c = Cipher.getInstance("AES/GCM/NoPadding")
-            c.init(Cipher.ENCRYPT_MODE, key())
+            c.init(Cipher.ENCRYPT_MODE, key(ks, alias))
             return c.iv + c.doFinal(plain)
         }
 
         override fun open(sealed: ByteArray): ByteArray {
             if (sealed.size < 12 + 16) throw WordStore.Unreadable()
-            // Keystore errors (busy, not ready, even a damaged key) all look alike here: WordStore treats them as
-            // passing and gives up after a few in a row (Q13).
-            val k = key()
-            val c = Cipher.getInstance("AES/GCM/NoPadding")
-            try {
-                c.init(Cipher.DECRYPT_MODE, k, GCMParameterSpec(128, sealed, 0, 12))
-                return c.doFinal(sealed, 12, sealed.size - 12)
-            } catch (e: AEADBadTagException) {
-                throw WordStore.Unreadable(e) // wrong key (lost or replaced) or a damaged file
-            } catch (e: KeyPermanentlyInvalidatedException) {
-                throw WordStore.Unreadable(e)
+            val ks = store()
+            // No key at all: a new one, so the file (sealed with a lost key) is found unreadable and set aside.
+            val all = aliases(ks).ifEmpty { listOf(ALIAS.also { key(ks, it) }) }
+            var passing: Exception? = null
+            for (alias in all) {
+                try {
+                    val c = Cipher.getInstance("AES/GCM/NoPadding")
+                    c.init(Cipher.DECRYPT_MODE, key(ks, alias), GCMParameterSpec(128, sealed, 0, 12))
+                    return c.doFinal(sealed, 12, sealed.size - 12)
+                } catch (e: AEADBadTagException) {
+                    // not this key (lost, replaced, or a damaged file): try the next
+                } catch (e: KeyPermanentlyInvalidatedException) {
+                    // this key can never be used again: try the next
+                } catch (e: Exception) {
+                    // Keystore errors (busy, not ready, even a damaged key) all look alike here: passing, and
+                    // WordStore gives up after a few in a row (Q13).
+                    if (passing == null) passing = e
+                }
             }
-            // Anything else (a busy key store, a device not quite unlocked) is passing: WordStore tries again later.
+            throw passing ?: WordStore.Unreadable()
         }
 
-        override fun reset() {
-            KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(ALIAS)
+        override fun rotate(): Boolean {
+            val ks = store()
+            val next = (aliases(ks).firstOrNull()?.let { generation(it) } ?: 0) + 1
+            key(ks, aliasFor(next))
+            return true
         }
 
-        private fun key(): SecretKey {
-            val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-            (ks.getKey(ALIAS, null) as? SecretKey)?.let { return it }
+        override fun retireOld() {
+            val ks = store()
+            aliases(ks).drop(1).forEach { ks.deleteEntry(it) }
+        }
+
+        private fun key(ks: KeyStore, alias: String): SecretKey {
+            (ks.getKey(alias, null) as? SecretKey)?.let { return it }
             val g = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
             g.init(
-                KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                     .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                     .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                     .setKeySize(256)
@@ -118,7 +152,10 @@ class UserWords private constructor(context: Context) {
     }
 
     companion object {
-        private const val ALIAS = "keys_user_words_v1"
+        private const val ALIAS_PREFIX = "keys_user_words_"
+        /** The first key, as in 0.2.1. Later generations: keys_user_words_g2, _g3... */
+        private const val ALIAS = "${ALIAS_PREFIX}v1"
+        private const val GEN = "g"
         @Volatile private var instance: UserWords? = null
 
         fun get(context: Context): UserWords = instance ?: synchronized(this) {

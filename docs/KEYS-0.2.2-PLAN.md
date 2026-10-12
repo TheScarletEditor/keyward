@@ -1,6 +1,6 @@
 # Scarlet Keys 0.2.2 plan
 
-Status: **answers recorded 2026-10-11; ready to start with slice 1, waiting for the owner's go.** Nothing here is built. Prepared 2026-10-11 with /prep (resume mode) from the cross-app pattern check (Command `docs/BUILD-PATTERNS-2026-10.md`, "Keys hits"). Every finding below was checked against the code at `80aa720` before it went in.
+Status: **slices 0 to 4 done (2026-10-12); slice 5 (the release) runs as /finalize 0.2.2, report in `FINALIZE-0.2.2.md`.** Prepared 2026-10-11 with /prep (resume mode) from the cross-app pattern check (Command `docs/BUILD-PATTERNS-2026-10.md`, "Keys hits"). Every finding below was checked against the code at `80aa720` before it went in.
 
 Everything below was proposed by Claude and confirmed by the owner on 2026-10-11 (Q1 to Q4), so it is **decided**.
 
@@ -47,7 +47,7 @@ For the learned-words store and Forget. Each line becomes a check in slice 2 or 
 4. **Killed mid-save.** The new list is written to `words.tmp`, then renamed over `words.enc`. Decided: the rename result is checked; on failure `dirty` stays set so the next save tries again, and the temp file is deleted. A leftover `words.tmp` at load time is deleted, never read.
 5. **Settings and the keyboard at the same time.** One instance per process (D-017) and every method synchronized: kept as is, with a test that a Forget followed by a keyboard save writes nothing back.
 6. **Very large list.** Words are capped at 30 letters already. Decided: cap the list at 5,000 words, dropping the least-used, so the file and the suggestion pass stay small.
-7. **Format change later.** Proposed: the file starts with a one-byte format version (inside the encrypted body), so a future 0.3 can read 0.2.2 files and an older app refuses a newer file instead of wiping it. Files from 0.2.1 (no version byte) are read as version 0.
+7. **Format change later.** Decided (Q4): the file starts with a one-byte format version (inside the encrypted body), so a future 0.3 can read 0.2.2 files and an older app refuses a newer file instead of wiping it. Files from 0.2.1 (no version byte) are read as version 0.
 
 ### Forget learned words
 
@@ -179,7 +179,7 @@ Owner, on L3-4: "Move them off too". StrictMode in Settings (debug) still shows 
 
 Full scope (decided, Q3):
 
-- `KeyboardView`: an `ExploreByTouchHelper` exposing each key as a virtual view, with spoken labels for icon keys (Shift and its state, Backspace, Enter with its action word, Space, Symbols, Letters, Numbers, Hide keyboard), so TalkBack's lift-to-type works.
+- `KeyboardView`: an `ExploreByTouchHelper` exposing each key as a virtual view, with spoken labels for icon keys (Shift and its state, Backspace, Enter with its action word, Space, Symbols and numbers, More symbols, Letters, Hide keyboard), so TalkBack's lift-to-type works.
 - `SuggestionStrip`: each suggestion as a virtual view ("Suggestion: hello").
 - Settings `Pill`: selected state for Theme and Key height choices (`Role.RadioButton`, selected), as Lyrics R21.
 - No allocation added to drawing or touch handling (D-013): node info is built only when TalkBack asks.

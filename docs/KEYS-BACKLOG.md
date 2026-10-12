@@ -21,4 +21,4 @@ Before fixing: reproduce each on an emulator and write a failing JVM test (Sugge
 
 - KB-5: the accent row (long press on a vowel) has no TalkBack route; long press with TalkBack types the top-row digit. Proposed: offer the accents as TalkBack actions on the key.
 - KB-6: the highlighted suggestion (the word space will put in) is spoken like the others. Proposed: "Suggestion: hello, will replace" (new wording, the owner's call).
-- KB-7: on a phone the suggestion strip is 42 dp tall, under the 48 dp tap-area rule. Proposed: check on the Flip whether 48 dp feels too tall; the owner's call.
+- KB-7: on a phone the suggestion strip is 42 dp tall, under the 48 dp tap-area rule. Proposed: check on the phone whether 48 dp feels too tall; the owner's call.

@@ -105,7 +105,8 @@ abstract class CopyLicenses : DefaultTask() {
         val out = outputDir.get().dir("licenses").asFile
         out.deleteRecursively(); out.mkdirs()
         appLicense.get().asFile.copyTo(out.resolve("LICENSE"))
-        folder.get().asFile.listFiles()!!.filter { it.isFile }.forEach { it.copyTo(out.resolve(it.name)) }
+        // Only license texts: no stray files (editor backups, OS files) can ship (A-C1).
+        folder.get().asFile.listFiles()!!.filter { it.isFile && it.extension == "txt" }.forEach { it.copyTo(out.resolve(it.name)) }
     }
 }
 

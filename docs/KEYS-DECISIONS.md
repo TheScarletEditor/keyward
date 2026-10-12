@@ -6,7 +6,7 @@ Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-lo
 
 | # | Question | Answer (word for word) | Effect | Check |
 |---|---|---|---|---|
-| Q15 | What TalkBack says for each key, suggestion and Settings item | "Say \"Backspace\"" | As shown, with "Backspace" for the delete key. | `KeyLabelsTest`; TalkBack walk on the emulator. |
+| Q15 | What TalkBack says for each key, suggestion and Settings item | "Say \"Backspace\"" | As shown (the full list is `keys/src/main/java/com/thescarletcoder/keys/KeyLabels.kt` at 38d0669), with "Backspace" for the delete key. | `KeyLabelsTest`; TalkBack walk on the emulator. |
 
 ## 2026-10-12 (the owner, slice 3 mini-audit)
 

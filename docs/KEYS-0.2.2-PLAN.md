@@ -70,6 +70,15 @@ Owner, 2026-10-12: "texting in landscape, the keyboard takes up the whole screen
 - In landscape the keys take at most 40% of the screen's height and shrink to fit (tuning: Landscape, 0.25 to 0.6, personal and debug builds only).
 - Checks: unit tests and the personal build pass; the owner texts in landscape on the phone and the app stays visible above the keyboard; portrait unchanged on both devices; tablet landscape unchanged (its keys already fit under 40%). Emulator walk (phone, small phone, tablet, landscape) with the 0.2.2 release check.
 
+### Slice 0b: typing bugs (KB-1 to KB-3 and D-020, added 2026-10-12, built second)
+
+Owner, 2026-10-12: "now fix the three typing bugs" (`docs/KEYS-BACKLOG.md`).
+
+- KB-1, two quick backspaces eat the spaces before a word: picking a word back up used a remembered cursor position, and selection updates arrive late, so the word was written over the wrong stretch of text. `resumeWord` now works relative to the real cursor (delete the word, set it again as the word being typed, in one batch); the remembered `cursor` is gone.
+- KB-2, a period sometimes erases the word: a field that restarts mid-word keeps the word marked as being typed while Keys forgets it, so the next space or period replaced it. Keys now lets go of the word on a restart, and a space or punctuation with no word in progress clears any leftover mark first.
+- KB-3 and D-020: "i", "im", "i'm", "ive", "i've", "i'll", "i'd" always become "I", "I'm", "I've", "I'll", "I'd" (a rule ahead of the dictionary; "id" and "ill" stay words). One backspace still undoes it, and a word taken back is never corrected again in that field.
+- Checks: JVM test `iIsAlwaysCapital`; lint no new errors; the owner types on both devices (two quick backspaces after a word, a period right after a word, "i" mid-sentence, "im"). KB-1 and KB-2 have no JVM test (the editing code needs a real text field); the emulator walk for 0.2.2 repeats them.
+
 ### Slice 1: generic text and notices (K6, K7)
 
 - Replace the owner's name, pronouns, phone model and "the tablet" (where it means the owner's device) in comments, scripts and `CLAUDE.md` with neutral wording ("the owner", "the user", "a phone-width screen"), as Lyrics did on 2026-10-11. `CLAUDE.md` follows the Lyrics wording: folders "next to this one", "the backups it describes", no drive labels or script path.

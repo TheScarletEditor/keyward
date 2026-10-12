@@ -28,6 +28,16 @@ class SuggestTest {
         listOf("the", "walk", "dog", "nausea", "ibuprofen", "I", "ok").forEach { assertNull(it, fix(it)) }
     }
 
+    @Test fun iIsAlwaysCapital() {
+        assertEquals("I", fix("i"))
+        assertEquals("I'm", fix("im"))
+        assertEquals("I'm", fix("i'm"))
+        assertEquals("I've", fix("ive"))
+        assertEquals("I'll", fix("i'll"))
+        assertEquals("I'd", fix("i'd"))
+        listOf("I", "I'm", "I'M", "id", "ill").forEach { assertNull(it, fix(it)) }
+    }
+
     @Test fun completionsOffered() {
         val c = dict.candidates("tomo", { 0 }, emptyList()).map { it.word.lowercase() }
         assertTrue(c.take(3).toString(), "tomorrow" in c.take(3))

@@ -99,6 +99,9 @@ class Dictionary private constructor(
         ranked: List<Candidate>? = null,
     ): String? {
         val t = typed.lowercase()
+        // The word "I" and its contractions: always capital, before the dictionary (which knows "i" as a word, and
+        // ranks "in" above "I'm" for "im"). KB-3, D-020.
+        I_WORDS[t]?.let { fixed -> return if (typed == fixed || typed == fixed.uppercase()) null else fixed }
         if (t.length < 2 || known(t)) return null
         if (t.any { !it.isLetter() && it != '\'' }) return null
         val best = (ranked ?: candidates(t, userBoost, userWords)).firstOrNull { it.distance > 0f } ?: return null
@@ -111,6 +114,11 @@ class Dictionary private constructor(
         private const val DISTANCE_WEIGHT = 150f
         /** Only autocorrect to reasonably common words. */
         private const val MIN_FIX_FREQ = 50
+
+        /** Typed (lowercase) to fixed. "id" and "ill" are words of their own, so "I'd" and "I'll" need the apostrophe. */
+        private val I_WORDS = mapOf(
+            "i" to "I", "im" to "I'm", "i'm" to "I'm", "ive" to "I've", "i've" to "I've", "i'll" to "I'll", "i'd" to "I'd",
+        )
 
         fun load(context: Context): Dictionary = loadBinary(context.assets.open("en.bin"))
 

@@ -14,4 +14,4 @@ Owner's words: "backspacing twice in a row removes the spaces between prior word
 
 Before fixing: reproduce each on an emulator and write a failing JVM test (SuggestTest or a new editing test). Never log typed text while debugging; the Recent fields diagnostic records field types only.
 
-Open question for the owner when this is picked up: fold KB-1 to KB-3 into 0.2.2 next to D-020, or a 0.2.3 of their own.
+**Picked up 2026-10-12:** fixed as slice 0b of `KEYS-0.2.2-PLAN.md`, ships with 0.2.2. Causes and checks are there.

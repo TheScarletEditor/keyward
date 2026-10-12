@@ -68,9 +68,6 @@ class KeysService : InputMethodService(), KeyListener {
      */
     private val kept = HashSet<String>()
 
-    /** The cursor, from the editor's last selection update (-1 until the first one). */
-    private var cursor = -1
-
     /** Theme, key height or bubble changed in Settings: rebuild so it applies while the keyboard is up. */
     private val prefsChanged = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key in setOf("theme", "key_height", "bubble") && ::panel.isInitialized) rebuild()
@@ -189,10 +186,12 @@ class KeysService : InputMethodService(), KeyListener {
             else -> ""
         }
 
+        // A field that restarts mid-word (some messaging apps do, as text changes) keeps the word marked as being
+        // typed; let it go, or the next space or period replaces that word (KB-2).
+        if (composing.isNotEmpty()) currentInputConnection?.finishComposingText()
         composing.clear()
         undo = null
         kept.clear()
-        cursor = info.initialSelEnd
         strip.clear()
         // The strip is always there (the keyboard never changes height). Private fields say so.
         val noLearning = info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
@@ -210,7 +209,6 @@ class KeysService : InputMethodService(), KeyListener {
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
-        cursor = if (newSelStart == newSelEnd) newSelEnd else -1
         // Sam tapped elsewhere in the text: stop working on the old word.
         if (composing.isNotEmpty() && (newSelStart != newSelEnd || candidatesEnd == -1 || newSelStart != candidatesEnd)) {
             composing.clear()
@@ -287,7 +285,7 @@ class KeysService : InputMethodService(), KeyListener {
      */
     private fun resumeWord(): Boolean {
         val ic = currentInputConnection ?: return false
-        if (!suggestOn || cursor < 0) return false
+        if (!suggestOn || !ic.getSelectedText(0).isNullOrEmpty()) return false
         val after = ic.getTextAfterCursor(1, 0)?.toString().orEmpty()
         if (after.isNotEmpty() && (after[0].isLetter() || after[0] == '\'')) return false
         val before = ic.getTextBeforeCursor(MAX_WORD, 0)?.toString() ?: return false
@@ -296,7 +294,12 @@ class KeysService : InputMethodService(), KeyListener {
         if (n == 0 || n == before.length && before.length == MAX_WORD) return false   // no word, or longer than any word
         val word = before.substring(before.length - n).trimStart('\'')
         if (word.isEmpty()) return false
-        if (!ic.setComposingRegion(cursor - word.length, cursor)) return false
+        // Relative to where the cursor really is, never a remembered position: selection updates arrive late, and
+        // two quick backspaces used to put the word over the wrong text, eating the spaces before it (KB-1).
+        ic.beginBatchEdit()
+        ic.deleteSurroundingText(word.length, 0)
+        ic.setComposingText(word, 1)
+        ic.endBatchEdit()
         composing.clear()
         composing.append(word)
         return true
@@ -315,6 +318,8 @@ class KeysService : InputMethodService(), KeyListener {
             undo = if (final != original) Undo(original, final, sep) else null
             ic.commitText(sep, 1)
         } else {
+            // No word of ours is being typed, so nothing in the field should be marked as one (KB-2).
+            ic.finishComposingText()
             // Double space after a word: ". " like most keyboards.
             if (sep == " " && lastWasSpaceAfterWord()) {
                 ic.deleteSurroundingText(1, 0)
@@ -353,12 +358,10 @@ class KeysService : InputMethodService(), KeyListener {
         }
         // Backspacing into the end of a word: take it up again, so suggestions and autocorrect see the whole word.
         val prev = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
-        if (suggestOn && cursor > 0 && prev.isNotEmpty() && prev[0].isLetter()) {
+        if (suggestOn && prev.isNotEmpty() && prev[0].isLetter()) {
             ic.beginBatchEdit()
             ic.deleteSurroundingText(1, 0)
-            cursor -= 1
             val resumed = resumeWord()
-            if (resumed) ic.setComposingText(composing, 1)
             ic.endBatchEdit()
             if (resumed) refreshSuggestions() else strip.clear()
             updateAutoCaps()

@@ -87,6 +87,24 @@ Owner, 2026-10-12: "Macbook tried to autocorrect. Does Keys not recognize brands
 - A word the user capitalises mid-sentence is taken as a name and never autocorrected (suggestions still show). A capital at the start of a sentence or the field says nothing. The "I" words are still fixed.
 - Checks: JVM tests `modernNamesAreKnown`, `capitalMidSentenceIsAName`, and `BinaryDictTest` with the merged list; the owner types "Macbook" mid-sentence and a capitalised made-up name.
 
+### Slices 0 to 0c: mini-audit (2026-10-12)
+
+`/finalize --slice` on `5054bd7..3a10263`, run after the slices were already on the owner's devices and pushed (they were built as quick fixes before the check). Checklist pass, three review rounds, build, unit tests (13) and lint clean. Findings:
+
+- L0-1 (question): "i" then "." became "I.", so "i.e." became "I.e.". Owner: "Leave \"i.\" alone (Recommended)". "i" before a period is never fixed.
+- L0-2 (mechanical, high): Jetpack Compose fields apply a batch's edits at its end and answer reads from the old text, so backspacing into a word read stale text and KB-1 came back there. All reads now happen before any edit (`lookBack`), and the word is marked in place with `setComposingRegion` where the editor gives positions (`getSurroundingText`), which also keeps links and formatting (L0-4); else it is retyped.
+- L0-3 (mechanical): a stray "being typed" mark widened deletes. Cleared before taking a word up, and whenever an update shows one while no word of ours is in progress.
+- L0-5 (mechanical): the name rule took autocaps after quotes or brackets (`He left." teh`) and every word in capitalise-words fields for names. A new word is a name only when the user tapped Shift, mid-sentence (quotes and brackets skipped); a word picked up again, when it starts with a capital mid-sentence and isn't all caps.
+- L0-6 (mechanical): "IM" in caps became "I'M"; all-caps forms are left alone.
+- L0-7 (mechanical): learned words now stop the "I" fix only for a form the user took back ("im"), never "i'm" learned from every fix.
+- L0-8 (mechanical): "Shein" blocked the "shine" typo fix; removed (rule already in extra.dict's header).
+- L0-9 (mechanical): a word list line with a Windows line ending silently got frequency 0; both loaders trim, and the build fails on a frequency that doesn't parse.
+- L0-10 (mechanical): fields that restart as you type (and rotation) wiped the undo and the words taken back. Both survive a restart of the same field; the undo only applies where it was made (same text before the cursor, same position), since Compose and web fields in one app can share an id.
+- L0-11 (mechanical): fewer round trips to the app per word (one `getSurroundingText` instead of up to four reads).
+- Laptop tests added: `WordsTest` (word at the cursor, sentence starts), "IM", taken-back and learned "I" words. KB-1 and KB-2 still have no laptop test (they need a real text field); covered on the emulator below.
+- Noted, no change: an opening quote mid-sentence (`said "Teh` with Shift) counts as mid-sentence; the landscape keys cap covers the keys only, the strip and bottom padding come on top (the owner checked landscape on the phone); the tablet's short side is 800 dp, well clear of the 600 dp phone line.
+- Device checks (emulator and the owner's phone): fast double backspace into a word and typing right after a backspace, in a regular app and a Compose app; a period right after a word; undo after an autocorrect, then rotate and undo.
+
 ### Slice 1: generic text and notices (K6, K7)
 
 - Replace the owner's name, pronouns, phone model and "the tablet" (where it means the owner's device) in comments, scripts and `CLAUDE.md` with neutral wording ("the owner", "the user", "a phone-width screen"), as Lyrics did on 2026-10-11. `CLAUDE.md` follows the Lyrics wording: folders "next to this one", "the backups it describes", no drive labels or script path.

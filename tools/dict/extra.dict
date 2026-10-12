@@ -2,7 +2,7 @@
 # Lines without a tab (like these) are ignored. Merged with en.dict at build time (:keys:buildDict).
 # Only words made of letters and apostrophes (Keys ends a word at "-", "+" or "&"). Frequencies kept modest
 # (60 to 90) so a name never outranks a common word as an autocorrect target. Skip names that are a one-letter
-# slip from a common word (for example Ulta and "ultra"): knowing them would stop that typo being fixed.
+# slip from a common word (for example Ulta and "ultra", Shein and "shine"): knowing them would stop that typo being fixed.
 MacBook	90
 MacBooks	70
 macOS	80
@@ -36,7 +36,6 @@ Lululemon	70
 Chipotle	80
 Sephora	75
 Wayfair	70
-Shein	65
 Motrin	65
 Aleve	65
 Zyrtec	65

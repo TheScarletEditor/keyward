@@ -105,8 +105,11 @@ abstract class BuildDict : DefaultTask() {
     @TaskAction fun run() {
         class E(val lower: String, val display: String, val freq: Int, val offensive: Boolean)
         val entries = (source.get().asFile.readLines() + extra.get().asFile.readLines()).mapNotNull { line ->
-            val p = line.split('\t')
-            if (p.size < 2) null else E(p[0].lowercase(), p[0], (p[1].toIntOrNull() ?: 0).coerceIn(0, 255), p.getOrNull(2) == "o")
+            val p = line.trimEnd('\r').split('\t')
+            if (p.size < 2) null else {
+                val f = requireNotNull(p[1].trim().toIntOrNull()) { "bad frequency in the word list: $line" }
+                E(p[0].lowercase(), p[0], f.coerceIn(0, 255), p.getOrNull(2)?.trim() == "o")
+            }
         }.sortedWith(compareBy<E>({ it.lower }, { -it.freq }))
         val out = outputDir.get().file("en.bin").asFile
         out.parentFile.mkdirs()

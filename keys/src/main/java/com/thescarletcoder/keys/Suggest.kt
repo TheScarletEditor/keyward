@@ -103,7 +103,14 @@ class Dictionary private constructor(
         val t = typed.lowercase()
         // The word "I" and its contractions: always capital, before the dictionary (which knows "i" as a word, and
         // ranks "in" above "I'm" for "im"). KB-3, D-020.
-        I_WORDS[t]?.let { fixed -> return if (typed == fixed || typed == fixed.uppercase()) null else fixed }
+        // Not for all caps ("IM" may be the acronym) or a word the user taught Keys by taking the fix back.
+        I_WORDS[t]?.let { fixed ->
+            val allCaps = typed.length > 1 && typed.none { it.isLowerCase() }
+            // Learned words hold what the user kept, including "i'm" from every fix, so only a typed form that
+            // differs from the fix ("im", kept by taking the fix back) counts.
+            val takenBack = t != fixed.lowercase() && userWords.any { it.equals(t, ignoreCase = true) }
+            return if (typed == fixed || allCaps || takenBack) null else fixed
+        }
         if (name || t.length < 2 || known(t)) return null
         if (t.any { !it.isLetter() && it != '\'' }) return null
         val best = (ranked ?: candidates(t, userBoost, userWords)).firstOrNull { it.distance > 0f } ?: return null
@@ -155,10 +162,10 @@ class Dictionary private constructor(
             val f = ArrayList<Int>(170_000); val o = ArrayList<Boolean>(170_000)
             input.bufferedReader().useLines { lines ->
                 lines.forEach { line ->
-                    val parts = line.split('\t')
+                    val parts = line.trimEnd('\r').split('\t')
                     if (parts.size >= 2) {
-                        d += parts[0]; l += parts[0].lowercase(); f += parts[1].toIntOrNull() ?: 0
-                        o += parts.getOrNull(2) == "o"
+                        d += parts[0]; l += parts[0].lowercase(); f += parts[1].trim().toIntOrNull() ?: 0
+                        o += parts.getOrNull(2)?.trim() == "o"
                     }
                 }
             }

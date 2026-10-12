@@ -52,8 +52,12 @@ class KeysService : InputMethodService(), KeyListener {
     private var numeric = false
 
     private val composing = StringBuilder()
-    /** The word being typed starts a sentence (or the field), so a capital on it says nothing about it being a name. */
-    private var wordStartsSentence = true
+    /** The word being typed was capitalised by the user mid-sentence: a name (MacBook, Priya), never autocorrected. */
+    private var wordIsName = false
+    /** Shift is on because the user tapped it, not because a sentence starts here. */
+    private var shiftByUser = false
+    /** The field this keyboard last set up, so a restart of the same field keeps undo and the words taken back. */
+    private var fieldKey: Pair<String?, Int>? = null
     private var autocorrectPick: String? = null
     private var pickFor: String? = null
     private var seq = 0
@@ -62,7 +66,8 @@ class KeysService : InputMethodService(), KeyListener {
 
     /** Set right after an autocorrect; one backspace puts back what the user actually typed. */
     private var undo: Undo? = null
-    private class Undo(val original: String, val corrected: String, val separator: String)
+    /** [at]: where the cursor ends up after the fix, in the field (-1 when the editor doesn't say). */
+    private class Undo(val original: String, val corrected: String, val separator: String, val at: Int)
 
     /**
      * Words the user took back from autocorrect in this field (lowercase): never corrected again here, even where the
@@ -114,7 +119,7 @@ class KeysService : InputMethodService(), KeyListener {
     /** New input view with the current look, set up again for the field that's open. */
     private fun rebuild() {
         setInputView(onCreateInputView())
-        currentInputEditorInfo?.let { if (isInputViewShown) configureFor(it) }
+        currentInputEditorInfo?.let { if (isInputViewShown) configureFor(it, restarting = true) }
     }
 
     private var lastNight = -1
@@ -143,10 +148,10 @@ class KeysService : InputMethodService(), KeyListener {
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        configureFor(info)
+        configureFor(info, restarting)
     }
 
-    private fun configureFor(info: EditorInfo) {
+    private fun configureFor(info: EditorInfo, restarting: Boolean) {
         val cls = info.inputType and InputType.TYPE_MASK_CLASS
         val variation = info.inputType and InputType.TYPE_MASK_VARIATION
         val password = isPassword(cls, variation)
@@ -192,8 +197,15 @@ class KeysService : InputMethodService(), KeyListener {
         // typed; let it go, or the next space or period replaces that word (KB-2).
         if (composing.isNotEmpty()) currentInputConnection?.finishComposingText()
         composing.clear()
-        undo = null
-        kept.clear()
+        // Some apps restart the field as text changes, and rotation restarts it too: the same field keeps the undo and
+        // the words taken back (delete() checks the text still matches before undoing).
+        // Compose and web fields in one app can share an id, so the undo also needs the cursor where it left it.
+        val key = info.packageName to info.fieldId
+        val sameField = restarting && key == fieldKey
+        if (!sameField) kept.clear()
+        val u = undo
+        if (!sameField || u == null || u.at < 0 || info.initialSelStart != u.at || info.initialSelEnd != u.at) undo = null
+        fieldKey = key
         strip.clear()
         // The strip is always there (the keyboard never changes height). Private fields say so.
         val noLearning = info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
@@ -219,6 +231,8 @@ class KeysService : InputMethodService(), KeyListener {
             undo = null
         }
         if (newSelStart != newSelEnd) undo = null
+        // Text still marked as being typed while no word of ours is: let it go, or the next edit replaces it (KB-2).
+        if (composing.isEmpty() && candidatesStart != -1) currentInputConnection?.finishComposingText()
         if (composing.isEmpty()) updateAutoCaps()
         // Cursor past the start means there's text: the space bar wordmark dims.
         if (::panel.isInitialized) keyboard.fieldHasText = newSelEnd > 0 || composing.isNotEmpty()
@@ -264,9 +278,13 @@ class KeysService : InputMethodService(), KeyListener {
                 // Typing right after the end of a word (after backspacing into it) carries on that word, so
                 // "exevute", back to "exe", then "cute" is one word again, not a new one starting at the cursor.
                 val ic = currentInputConnection
+                val look = if (composing.isEmpty()) lookBack() else null
                 // One batch, so the editor reports a single change and never a moment with no word being typed.
                 ic?.beginBatchEdit()
-                if (composing.isEmpty() && !resumeWord()) wordStartsSentence = startsSentence(ic?.getTextBeforeCursor(16, 0))
+                if (composing.isEmpty()) {
+                    if (look != null && look.word.isNotEmpty()) takeUp(look, look.word.length)
+                    else wordIsName = keyboard.shift == Shift.ONE && shiftByUser && look?.sentenceStart != true
+                }
                 composing.append(s)
                 ic?.setComposingText(composing, 1)
                 ic?.endBatchEdit()
@@ -278,56 +296,64 @@ class KeysService : InputMethodService(), KeyListener {
             // right here, so backspace after "CINC?" deleted the "?" instead of putting "CINC" back).
             else -> separator(s)
         }
-        if (keyboard.shift == Shift.ONE) keyboard.shift = Shift.OFF
+        if (keyboard.shift == Shift.ONE) { keyboard.shift = Shift.OFF; shiftByUser = false }
+    }
+
+    /** The word the cursor sits at the end of ("" when none) and where it starts in the field (-1 when unknown). */
+    private class Look(val word: String, val start: Int, val sentenceStart: Boolean)
+
+    /**
+     * Read only, and always before any edit: some editors (Jetpack Compose) apply a batch's edits only when it ends and
+     * answer reads from the old text, so reading after a write put the word over the wrong text (KB-1). Null when
+     * there's a selection, the cursor is inside a word (a letter right after it: the user is editing inside a word,
+     * left alone), or the editor can't say.
+     */
+    private fun lookBack(): Look? {
+        val ic = currentInputConnection ?: return null
+        if (!suggestOn) return null
+        val st = ic.getSurroundingText(MAX_WORD, 1, 0) ?: return null
+        val cur = st.selectionStart
+        if (cur < 0 || cur != st.selectionEnd || cur > st.text.length) return null
+        if (cur < st.text.length && (st.text[cur].isLetter() || st.text[cur] == '\'')) return null
+        val before = st.text.subSequence(0, cur)
+        val word = Words.wordAtEnd(before, MAX_WORD) ?: return null
+        val start = if (st.offset >= 0) st.offset + cur - word.length else -1
+        return Look(word, start, Words.startsSentence(before.subSequence(0, before.length - word.length)))
     }
 
     /**
-     * Pick up the word the cursor sits at the end of, as the word being typed. Only at a word's end (a letter
-     * right after the cursor means the user is editing inside a word; that's left alone). Returns true if it did.
+     * Make the first [len] letters of [look]'s word the word being typed. Call inside a batch, after every read.
+     * Marks the existing text where the editor gives positions (links and formatting stay), else retypes it.
      */
-    private fun resumeWord(): Boolean {
-        val ic = currentInputConnection ?: return false
-        if (!suggestOn || !ic.getSelectedText(0).isNullOrEmpty()) return false
-        val after = ic.getTextAfterCursor(1, 0)?.toString().orEmpty()
-        if (after.isNotEmpty() && (after[0].isLetter() || after[0] == '\'')) return false
-        val before = ic.getTextBeforeCursor(MAX_WORD, 0)?.toString() ?: return false
-        var n = 0
-        while (n < before.length && (before[before.length - 1 - n].isLetter() || before[before.length - 1 - n] == '\'')) n++
-        if (n == 0 || n == before.length && before.length == MAX_WORD) return false   // no word, or longer than any word
-        val word = before.substring(before.length - n).trimStart('\'')
-        if (word.isEmpty()) return false
-        wordStartsSentence = startsSentence(before.substring(0, before.length - word.length))
-        // Relative to where the cursor really is, never a remembered position: selection updates arrive late, and
-        // two quick backspaces used to put the word over the wrong text, eating the spaces before it (KB-1).
-        ic.beginBatchEdit()
-        ic.deleteSurroundingText(word.length, 0)
-        ic.setComposingText(word, 1)
-        ic.endBatchEdit()
+    private fun takeUp(look: Look, len: Int) {
+        val ic = currentInputConnection ?: return
+        val word = look.word.substring(0, len)
+        // A stray mark would widen deleteSurroundingText and setComposingRegion's reach; drop it first.
+        ic.finishComposingText()
+        if (look.start >= 0) ic.setComposingRegion(look.start, look.start + len)
+        else { ic.deleteSurroundingText(len, 0); ic.setComposingText(word, 1) }
         composing.clear()
         composing.append(word)
-        return true
+        wordIsName = !look.sentenceStart && word.first().isUpperCase() && !(word.length > 1 && word.none { it.isLowerCase() })
     }
 
-    /** Nothing before, or the last thing before (spaces aside) ends a sentence or a line. Unknown counts as a start. */
-    private fun startsSentence(before: CharSequence?): Boolean {
-        val t = before?.toString()?.trimEnd(' ', '\t') ?: return true
-        return t.isEmpty() || t.last() in ".!?\n"
-    }
-
-    /** Capitalised by the user mid-sentence: a name (MacBook, Priya), never autocorrected. */
-    private fun looksLikeName(word: String) = !wordStartsSentence && word.firstOrNull()?.isUpperCase() == true
+    /** Capitalised by the user mid-sentence: a name, never autocorrected. */
+    private fun looksLikeName(word: String) = wordIsName && word.firstOrNull()?.isUpperCase() == true
 
     /** Space or punctuation: the word is finished, so this is where autocorrect happens. */
     private fun separator(sep: String) {
         val ic = currentInputConnection ?: return
         if (composing.isNotEmpty()) {
             val original = composing.toString()
-            val final = fixFor(original) ?: original
+            // "i." stays as typed: "i.e." and list markers (the owner, 2026-10-12).
+            val final = (if (sep == "." && original == "i") null else fixFor(original)) ?: original
+            // Read before writing: where the word starts, so the undo knows where it applies.
+            val wordStart = if (final != original) cursorInField(ic)?.minus(original.length) ?: -1 else -1
             ic.commitText(final, 1)
             learn(final)
             composing.clear()
             strip.clear()
-            undo = if (final != original) Undo(original, final, sep) else null
+            undo = if (final != original) Undo(original, final, sep, if (wordStart >= 0) wordStart + final.length + sep.length else -1) else null
             ic.commitText(sep, 1)
         } else {
             // No word of ours is being typed, so nothing in the field should be marked as one (KB-2).
@@ -342,6 +368,13 @@ class KeysService : InputMethodService(), KeyListener {
         updateAutoCaps()
     }
 
+    /** The cursor's position in the field, or null when there's a selection or the editor doesn't say. */
+    private fun cursorInField(ic: android.view.inputmethod.InputConnection): Int? {
+        val st = ic.getSurroundingText(0, 0, 0) ?: return null
+        if (st.offset < 0 || st.selectionStart < 0 || st.selectionStart != st.selectionEnd) return null
+        return st.offset + st.selectionStart
+    }
+
     private fun lastWasSpaceAfterWord(): Boolean {
         val before = currentInputConnection?.getTextBeforeCursor(2, 0)?.toString() ?: return false
         return before.length == 2 && before[1] == ' ' && before[0].isLetterOrDigit()
@@ -350,12 +383,15 @@ class KeysService : InputMethodService(), KeyListener {
     private fun delete() {
         val ic = currentInputConnection ?: return
         val u = undo
-        if (u != null) {
+        undo = null
+        // Only while the fix is still right before the cursor, at the same place (after a restart or a sent message
+        // it may not be).
+        if (u != null && ic.getTextBeforeCursor(u.corrected.length + u.separator.length, 0)?.toString() == u.corrected + u.separator &&
+            (u.at < 0 || cursorInField(ic) == u.at)) {
             // Undo the autocorrect: put back exactly what was typed, separator included ("CINC?" stays "CINC?"),
             // and never correct that word again in this field.
             ic.deleteSurroundingText(u.corrected.length + u.separator.length, 0)
             ic.commitText(u.original + u.separator, 1)
-            undo = null
             kept += u.original.lowercase()
             if (learnOn) { userWords.record(u.original); userWords.record(u.original) }
             strip.clear()
@@ -369,11 +405,13 @@ class KeysService : InputMethodService(), KeyListener {
             return
         }
         // Backspacing into the end of a word: take it up again, so suggestions and autocorrect see the whole word.
-        val prev = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
-        if (suggestOn && prev.isNotEmpty() && prev[0].isLetter()) {
+        val look = lookBack()
+        if (look != null && look.word.isNotEmpty() && look.word.last().isLetter()) {
             ic.beginBatchEdit()
+            ic.finishComposingText()
             ic.deleteSurroundingText(1, 0)
-            val resumed = resumeWord()
+            val resumed = look.word.length > 1
+            if (resumed) takeUp(look, look.word.length - 1)
             ic.endBatchEdit()
             if (resumed) refreshSuggestions() else strip.clear()
             updateAutoCaps()
@@ -413,6 +451,7 @@ class KeysService : InputMethodService(), KeyListener {
             Shift.ONE -> if (now - lastShiftTap < 350) Shift.LOCKED else Shift.OFF
             Shift.LOCKED -> Shift.OFF
         }
+        shiftByUser = keyboard.shift != Shift.OFF
         lastShiftTap = now
     }
 
@@ -429,6 +468,7 @@ class KeysService : InputMethodService(), KeyListener {
         val info = currentInputEditorInfo ?: return
         val caps = currentInputConnection?.getCursorCapsMode(info.inputType) ?: 0
         keyboard.shift = if (caps != 0) Shift.ONE else Shift.OFF
+        shiftByUser = false
     }
 
     // ---- suggestions ----

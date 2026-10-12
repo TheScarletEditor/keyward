@@ -2,6 +2,12 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, slices 0 to 0c mini-audit)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q10 | L0-1: "i" before a period ("i.e.") | "Leave \"i.\" alone (Recommended)" | "i" followed by "." is never fixed; elsewhere "i" still becomes "I". | Emulator: "i.e." and "so i went" typed. |
+
 ## 2026-10-12 (the owner, slice 1 mini-audit)
 
 | # | Question | Answer (word for word) | Effect | Check |

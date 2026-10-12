@@ -35,6 +35,12 @@ class SuggestTest {
         assertEquals("I'll", fix("i'll"))
         assertEquals("I'd", fix("i'd"))
         listOf("I", "I'm", "I'M", "id", "ill").forEach { assertNull(it, fix(it)) }
+        assertNull("acronym in caps", fix("IM"))
+        // A word the user taught Keys by taking the fix back is left alone.
+        assertNull(dict.autocorrect("im", { dict.isKnown(it) }, { 0 }, listOf("im")))
+        // "i'm" learned from every fix still gets its capital.
+        assertEquals("I'm", dict.autocorrect("i'm", { dict.isKnown(it) }, { 0 }, listOf("i'm")))
+        assertEquals("I'm", dict.autocorrect("im", { dict.isKnown(it) }, { 0 }, listOf("i'm")))
     }
 
     @Test fun modernNamesAreKnown() {

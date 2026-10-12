@@ -28,6 +28,8 @@ Then turn it on in Android's keyboard settings.
 - Fonts: Inter and Fraunces, SIL Open Font License 1.1 (`licenses/Inter-OFL.txt`, `licenses/Fraunces-OFL.txt`).
 - Jetpack Compose, AndroidX, the Kotlin standard library and kotlinx.coroutines (Apache 2.0, `licenses/Apache-2.0.txt`).
 
+The same license texts ship inside the app: Settings, Open source licenses.
+
 ## License
 
 Scarlet Keys is free software: you can use it, study it, change it and share it under the [GNU General Public License v3.0](LICENSE). If you share a changed version, it has to stay open under the same license.

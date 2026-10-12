@@ -40,6 +40,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +55,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.lifecycle.repeatOnLifecycle
 import com.thescarletcoder.scarlet.Motion
 import com.thescarletcoder.scarlet.ScarletField
@@ -88,12 +95,44 @@ class SettingsActivity : ComponentActivity() {
                 enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
             }
             var tuning by remember { mutableStateOf(false) }
+            // Saved across rotation and theme changes, so the page that's open stays open.
+            var licenses by rememberSaveable { mutableStateOf(false) }
+            var readingIndex by rememberSaveable { mutableIntStateOf(-1) }
+            val reading = Licenses.parts.getOrNull(readingIndex)
             BackHandler(enabled = tuning) { tuning = false }
+            BackHandler(enabled = licenses && reading == null) { licenses = false }
+            BackHandler(enabled = reading != null) { readingIndex = -1 }
+            val scroll = rememberScrollState()
+            // Where the main page was, so Back from Tuning or the licenses returns to the same spot.
+            var mainScroll by rememberSaveable { mutableIntStateOf(0) }
+            // Moving to another page opens it at its top, and back to the main page where it was. Only on a real move:
+            // after a rotation the scroll state restores itself.
+            val page = when { tuning -> "tuning"; reading != null -> "license $readingIndex"; licenses -> "licenses"; else -> "main" }
+            var shownPage by rememberSaveable { mutableStateOf(page) }
+            LaunchedEffect(page) {
+                if (page == shownPage) return@LaunchedEffect
+                if (page == "main") {
+                    // Wait for the main page to be laid out (its height), or the scroll stops at the short page's end.
+                    withTimeoutOrNull(1000) { snapshotFlow { scroll.maxValue }.first { it >= mainScroll } }
+                    scroll.scrollTo(mainScroll)
+                } else scroll.scrollTo(0)
+                shownPage = page
+            }
 
             Column(
-                Modifier.fillMaxSize().background(Color(p.bg)).safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
+                Modifier.fillMaxSize().background(Color(p.bg)).safeDrawingPadding().verticalScroll(scroll).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
+                val open = reading
+                if (licenses) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(open?.license ?: "Open source licenses", color = Color(p.text), fontSize = 30.sp, fontFamily = fraunces,
+                            modifier = Modifier.weight(1f).semantics { heading() })
+                        Pill("Back", false, p, inter) { if (open != null) readingIndex = -1 else licenses = false }
+                    }
+                    if (open != null) LicenseText(open, p, inter) else LicensesList(p, inter) { readingIndex = Licenses.parts.indexOf(it) }
+                    return@Column
+                }
                 if (tuning) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Tuning", color = Color(p.text), fontSize = 30.sp, fontFamily = fraunces, modifier = Modifier.weight(1f))
@@ -169,6 +208,18 @@ class SettingsActivity : ComponentActivity() {
                     ScarletField(t, { t = it }, "Type here to test", p, inter)
                 }
 
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(p.surface))
+                        .border(1.dp, Color(p.line), RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClickLabel = "Open the licenses") { mainScroll = scroll.value; licenses = true }.padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Open source licenses", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
+                        Text("The free software Scarlet Keys is built with, and its licenses.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)
+                    }
+                    Text("Open", color = Color(p.soft), fontSize = 15.sp, fontFamily = inter)
+                }
+
                 if (BuildConfig.TUNING) {
                     // Which fields asked for what (the owner, 2026-10-09: number fields don't always open the number pad).
                     Section("Recent fields", p, inter) {
@@ -178,7 +229,7 @@ class SettingsActivity : ComponentActivity() {
                     }
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(p.surface))
-                            .border(1.dp, Color(p.line), RoundedCornerShape(16.dp)).clickable { tuning = true }.padding(18.dp),
+                            .border(1.dp, Color(p.line), RoundedCornerShape(16.dp)).clickable { mainScroll = scroll.value; tuning = true }.padding(18.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {

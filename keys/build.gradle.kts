@@ -94,6 +94,19 @@ tasks.matching { it.name.matches(Regex("process[A-Za-z]+MainManifest")) }.config
     }
 }
 
+abstract class CopyLicenses : DefaultTask() {
+    @get:InputFile abstract val appLicense: RegularFileProperty
+    @get:InputDirectory abstract val folder: DirectoryProperty
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+
+    @TaskAction fun run() {
+        val out = outputDir.get().dir("licenses").asFile
+        out.deleteRecursively(); out.mkdirs()
+        appLicense.get().asFile.copyTo(out.resolve("LICENSE"))
+        folder.get().asFile.listFiles()!!.filter { it.isFile }.forEach { it.copyTo(out.resolve(it.name)) }
+    }
+}
+
 // The word list ships as en.bin, built here from tools/dict/en.dict (the source, kept as text) plus tools/dict/extra.dict
 // (names the AOSP list predates).
 // Format (tools/dict/README.md): "SKD1", entry count, then entries sorted by lowercase word (ties: most frequent first).
@@ -134,7 +147,17 @@ val buildDict = tasks.register<BuildDict>("buildDict") {
     extra.set(rootProject.file("tools/dict/extra.dict"))
     outputDir.set(layout.buildDirectory.dir("generated/dict"))
 }
-androidComponents {
-    onVariants { v -> v.sources.assets?.addGeneratedSourceDirectory(buildDict, BuildDict::outputDir) }
+// The license texts ship inside the APK too (Settings, "Open source licenses"): the repo's LICENSE and licenses/ folder,
+// one copy, under assets/licenses/. Licenses.kt lists them; LicensesTest checks the two match.
+val copyLicenses = tasks.register<CopyLicenses>("copyLicenses") {
+    appLicense.set(rootProject.file("LICENSE"))
+    folder.set(rootProject.file("licenses"))
+    outputDir.set(layout.buildDirectory.dir("generated/licenses"))
 }
-tasks.withType<Test>().configureEach { dependsOn(buildDict) }
+androidComponents {
+    onVariants { v ->
+        v.sources.assets?.addGeneratedSourceDirectory(buildDict, BuildDict::outputDir)
+        v.sources.assets?.addGeneratedSourceDirectory(copyLicenses, CopyLicenses::outputDir)
+    }
+}
+tasks.withType<Test>().configureEach { dependsOn(buildDict, copyLicenses) }

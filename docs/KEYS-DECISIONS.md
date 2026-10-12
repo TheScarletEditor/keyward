@@ -2,6 +2,12 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, slice 1b wording)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q11 | Slice 1b's text (Settings row, list page, license page, missing-file line, README line) and the extra GPL entry | "OK as written (Recommended)" | Text as shown; Scarlet Keys' own GPL is listed with the third-party licenses. | LicensesTest; emulator walk. |
+
 ## 2026-10-12 (the owner, slices 0 to 0c mini-audit)
 
 | # | Question | Answer (word for word) | Effect | Check |

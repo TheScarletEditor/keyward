@@ -173,8 +173,19 @@ class SettingsActivity : ComponentActivity() {
                         "Remembers words you use so it stops correcting them. Single words only, encrypted on this device. Never from password fields or fields an app marks as private, like incognito tabs.",
                         prefs.learn, p, inter,
                     ) { prefs.learn = it }
+                    // The list's state, if there's anything to say (Q2, Q12). Forget clears every case and starts a new list.
+                    var notice by remember { mutableStateOf(words.notice) }
+                    val noticeText = when (notice) {
+                        WordStore.Notice.SET_ASIDE -> "Your learned words couldn't be read on this device, so it started a new list."
+                        WordStore.Notice.NEWER -> "Your learned words were saved by a newer version of Scarlet Keys. This version leaves them as they are and won't learn new words."
+                        WordStore.Notice.NOT_LEARNING -> "Your learned words couldn't be read, so Scarlet Keys isn't learning new words for now."
+                        WordStore.Notice.NONE -> null
+                    }
+                    noticeText?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = inter) }
                     var count by remember { mutableIntStateOf(words.count) }
-                    if (count > 0) Pill("Forget learned words ($count)", false, p, inter) { words.clear(); count = 0 }
+                    if (count > 0 || noticeText != null) Pill(if (count > 0) "Forget learned words ($count)" else "Forget learned words", false, p, inter) {
+                        words.clear(); count = words.count; notice = words.notice
+                    }
                 }
 
                 Section("Feel", p, inter) {

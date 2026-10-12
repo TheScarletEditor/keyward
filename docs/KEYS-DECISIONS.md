@@ -2,6 +2,13 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, slice 2 mini-audit)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q12 | L2-2: a list from a newer Keys, or an unreadable list that couldn't be moved aside, stops learning with nothing shown | "Show line + Forget (Recommended)" | Settings shows "Your learned words were saved by a newer version of Scarlet Keys. This version leaves them as they are and won't learn new words." or "Your learned words couldn't be read, so Scarlet Keys isn't learning new words for now.", with "Forget learned words", which starts a new list. | `noticesAndForgetStartsANewList`. |
+| Q13 | L2-1b: reading keeps failing with errors that look passing | "Set aside after 3 (Recommended)" | After 3 failed reads in a row while unlocked, the file is moved aside (never deleted) and the usual line shows. | `threePassingErrorsInARowSetTheFileAside`. |
+
 ## 2026-10-12 (the owner, slice 1b wording)
 
 | # | Question | Answer (word for word) | Effect | Check |

@@ -137,6 +137,20 @@ Owner, 2026-10-12: "Macbook tried to autocorrect. Does Keys not recognize brands
 - Tests (JVM): unreadable file is set aside and never overwritten; passing error leaves the file untouched and retries; failed rename keeps `dirty` and removes the temp file; leftover temp file is ignored; bad count line skipped; 0.2.1 file (no version byte) reads; newer version refused without writing; cap at 5,000.
 - Device check: upgrade the personal build over 0.2.1 on the emulator with learned words in place; the count in Settings is unchanged.
 
+**Done 2026-10-12.** `WordStore` (plain Kotlin: format, load, save, set aside, cap, Forget's files) and `UserWords` (the Keystore). What can go wrong 1 to 7 as decided, plus the owner's two answers in the mini-audit (Q12, Q13). 19 `WordStoreTest` tests (36 in all), lint no errors. Device check on the emulator: the real 0.2.1 (built from its tag) learned 3 words ("Forget learned words (3)"); this build installed over it read the same 3; after typing with it, saving in the new format and a restart, 4. No line shown in Settings.
+
+`/finalize --slice`: three review rounds. Findings:
+- L2-1 (mechanical, revised in round 2): Keystore errors were sorted too eagerly. Only a failed integrity check (wrong key, damaged file) and a permanently invalidated key mean "never readable"; anything else from the Keystore is passing, and 3 in a row while unlocked count as unreadable (Q13).
+- L2-2 (question): two rare states (a list from a newer Keys; an unreadable list that couldn't be moved aside) stopped learning with nothing shown and no Forget. Owner: a line for each and the Forget pill (Q12).
+- L2-3 (mechanical): the cap scanned 5,000 words on the typing path; now trimmed at save and load, the least used and among those the longest unused first.
+- L2-4 (mechanical): the new file is synced to disk before the rename.
+- L2-5 (noted): disk and Keystore work on the main thread in Settings and in the service's onDestroy save; slice 3 (K5).
+- L2-6 (mechanical): a first byte of 0 is treated as unreadable, not as a 0.2.1 file.
+- L2-7 (mechanical, found while building): when full, the word just typed could be the one dropped, so a new word could never be learned; the trim's order fixes it.
+- L2-8 (mechanical): a key that fails every save left saving stuck with nothing shown; after 3 failed saves in a row the key is replaced once per run and the whole list (all in memory, since the file was read) is written with the new key in the same call.
+- L2-9 (mechanical): words typed before the list loaded counted as the oldest; the file's words now come first.
+- Also: every set-aside list keeps its own name (`words.unreadable`, `words.unreadable-2`), and Forget shows when only a set-aside list is left.
+
 ### Slice 3: Forget tells the truth, Settings off the main thread (K3, K5)
 
 - `clear()` returns whether every copy is gone; Settings shows the result as in "What can go wrong" above.

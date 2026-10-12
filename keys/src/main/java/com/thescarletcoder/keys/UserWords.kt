@@ -3,9 +3,10 @@ package com.thescarletcoder.keys
 import android.content.Context
 import android.os.UserManager
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
-import java.io.File
 import java.security.KeyStore
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -18,86 +19,77 @@ import javax.crypto.spec.GCMParameterSpec
  * The service never records in password fields or fields that ask for no personalized learning.
  * One instance per process ([get]), so "Forget learned words" in Settings also empties the keyboard's copy in memory
  * (with two copies, the keyboard's next save wrote every forgotten word back).
+ * The file rules (set aside, never overwrite, retry, cap) live in [WordStore]; this adds the Keystore.
  */
-class UserWords private constructor(private val context: Context) {
-    private val counts = HashMap<String, Int>()
-    private var dirty = false
-    private var loaded = false
+class UserWords private constructor(context: Context) {
+    private val store = WordStore(
+        dir = context.noBackupFilesDir,
+        sealer = KeystoreSealer,
+        unlocked = { context.getSystemService(UserManager::class.java).isUserUnlocked },
+    )
 
-    /** A word counts as "known" once used twice. */
-    @Synchronized
-    fun isKnown(word: String) = (counts[word.lowercase()] ?: 0) >= 2
+    fun isKnown(word: String) = store.isKnown(word)
+    fun boost(word: String) = store.boost(word)
 
-    @Synchronized
-    fun boost(word: String) = ((counts[word.lowercase()] ?: 0) * 8).coerceAtMost(80)
+    /** Learned words (used twice or more), for suggestions. */
+    val learned: Collection<String> get() = store.learned
+    val count: Int get() = store.count
 
-    /** Learned words that aren't in the main dictionary (for suggestions). */
-    val learned: Collection<String> @Synchronized get() = counts.filterValues { it >= 2 }.keys.toList()
+    /** A list that couldn't be read on this device was set aside and a new one started. */
+    val hasSetAside: Boolean get() = store.hasSetAside
 
-    val count: Int @Synchronized get() = counts.size
+    /** What Settings says about the list, if anything. */
+    val notice: WordStore.Notice get() = store.notice
 
-    @Synchronized
-    fun record(word: String) {
-        val w = word.lowercase()
-        if (w.length < 2 || w.length > 30 || w.any { !it.isLetter() && it != '\'' }) return
-        counts[w] = (counts[w] ?: 0) + 1
-        dirty = true
-    }
+    fun record(word: String) = store.record(word)
+    fun load() = store.load()
+    fun save() = store.save()
 
-    @Synchronized
-    fun load() {
-        if (loaded || !unlocked()) return
-        loaded = true
-        runCatching {
-            val f = file()
-            if (!f.exists()) return
-            val blob = f.readBytes()
-            val c = Cipher.getInstance("AES/GCM/NoPadding")
-            c.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, blob, 0, 12))
-            String(c.doFinal(blob, 12, blob.size - 12)).lineSequence().forEach { line ->
-                val i = line.lastIndexOf('\t')
-                if (i > 0) counts[line.substring(0, i)] = line.substring(i + 1).toIntOrNull() ?: 0
-            }
-        }
-    }
+    /** "Forget learned words": true only when every copy is gone. */
+    fun clear(): Boolean = store.clear()
 
-    @Synchronized
-    fun save() {
-        if (!dirty || !unlocked()) return
-        runCatching {
+    /** AES-GCM with a Keystore key; the 12-byte IV goes first. */
+    private object KeystoreSealer : WordStore.Sealer {
+        override fun seal(plain: ByteArray): ByteArray {
             val c = Cipher.getInstance("AES/GCM/NoPadding")
             c.init(Cipher.ENCRYPT_MODE, key())
-            val body = counts.entries.joinToString("\n") { "${it.key}\t${it.value}" }.toByteArray()
-            val tmp = File(context.noBackupFilesDir, "words.tmp")
-            tmp.writeBytes(c.iv + c.doFinal(body))
-            tmp.renameTo(file())
-            dirty = false
+            return c.iv + c.doFinal(plain)
         }
-    }
 
-    /** "Forget learned words": real delete. */
-    @Synchronized
-    fun clear() {
-        counts.clear()
-        dirty = false
-        runCatching { file().delete() }
-    }
+        override fun open(sealed: ByteArray): ByteArray {
+            if (sealed.size < 12 + 16) throw WordStore.Unreadable()
+            // Keystore errors (busy, not ready, even a damaged key) all look alike here: WordStore treats them as
+            // passing and gives up after a few in a row (Q13).
+            val k = key()
+            val c = Cipher.getInstance("AES/GCM/NoPadding")
+            try {
+                c.init(Cipher.DECRYPT_MODE, k, GCMParameterSpec(128, sealed, 0, 12))
+                return c.doFinal(sealed, 12, sealed.size - 12)
+            } catch (e: AEADBadTagException) {
+                throw WordStore.Unreadable(e) // wrong key (lost or replaced) or a damaged file
+            } catch (e: KeyPermanentlyInvalidatedException) {
+                throw WordStore.Unreadable(e)
+            }
+            // Anything else (a busy key store, a device not quite unlocked) is passing: WordStore tries again later.
+        }
 
-    private fun unlocked() = context.getSystemService(UserManager::class.java).isUserUnlocked
-    private fun file() = File(context.noBackupFilesDir, "words.enc")
+        override fun reset() {
+            KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(ALIAS)
+        }
 
-    private fun key(): SecretKey {
-        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (ks.getKey(ALIAS, null) as? SecretKey)?.let { return it }
-        val g = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-        g.init(
-            KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .build()
-        )
-        return g.generateKey()
+        private fun key(): SecretKey {
+            val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            (ks.getKey(ALIAS, null) as? SecretKey)?.let { return it }
+            val g = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+            g.init(
+                KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .build()
+            )
+            return g.generateKey()
+        }
     }
 
     companion object {

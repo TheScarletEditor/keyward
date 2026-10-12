@@ -2,6 +2,13 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, landscape)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q5 | Test the landscape fix (L1) where? | "Install on the Flip now (Recommended)" | Personal build on both devices before the emulator check (the emulator was in use by another session). | The owner texts in landscape on the phone. |
+| Q6 | Where does the landscape fix ship? | "Fold into 0.2.2 (Recommended)" | Slice 0 of the 0.2.2 plan, ships with 0.2.2. | Emulator walk in landscape with the 0.2.2 release check. |
+
 ## 2026-10-11 (the owner, on the 0.2.2 plan)
 
 | # | Question | Answer (word for word) | Effect | Check |

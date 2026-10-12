@@ -5,14 +5,14 @@ import android.content.Context
 /**
  * Phone-width screens (the Flip's inner screen is about 411 dp wide) get tighter spacing and slightly smaller labels,
  * so ten keys fit a row comfortably. Same layout and behaviour as the tablet.
+ * In landscape the keys also give up height so the app above stays usable (KeyboardView.onMeasure).
  */
 object Compact {
     private const val PHONE_MAX_DP = 600
 
-    fun isCompact(context: Context): Boolean {
-        val m = context.resources.displayMetrics
-        return m.widthPixels / m.density < PHONE_MAX_DP
-    }
+    /** By the screen's short side, so a phone stays a phone in landscape. */
+    fun isCompact(context: Context): Boolean =
+        context.resources.configuration.smallestScreenWidthDp < PHONE_MAX_DP
 
     /** Sizes in dp (or sp-like dp for text), tablet first, phone second. */
     data class Sizes(val gap: Float, val pad: Float, val corner: Float, val charText: Float, val wordText: Float, val hint: Float, val strip: Float, val stripText: Float)

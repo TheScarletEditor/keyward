@@ -17,6 +17,7 @@ object KeysTuning {
     const val HAP_LETTER = "hap_letter"
     const val HAP_SPACE = "hap_space"
     const val HAP_DELETE = "hap_delete"
+    const val LANDSCAPE_KEYS = "landscape_keys"
 
     /** The tallest bubble the slider allows; the keyboard reserves room above itself for it on phones. */
     const val BUBBLE_H_MAX = 72f
@@ -33,6 +34,8 @@ object KeysTuning {
         Tunable(HAP_LETTER, "Haptics", 0.5f, 0f, 1f, 0.05f),
         Tunable(HAP_SPACE, "Haptics", 0.6f, 0f, 1f, 0.05f),
         Tunable(HAP_DELETE, "Haptics", 0.4f, 0f, 1f, 0.05f),
+        // Most of the screen's height the keys (not the suggestion strip) may take in landscape.
+        Tunable(LANDSCAPE_KEYS, "Landscape", 0.4f, 0.25f, 0.6f, 0.01f),
     )
 
     /** Device-protected, like the rest of Keys' settings, so tuning works before first unlock. */

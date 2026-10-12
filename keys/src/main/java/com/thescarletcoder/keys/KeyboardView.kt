@@ -2,6 +2,7 @@ package com.thescarletcoder.keys
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -145,7 +146,12 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        val wanted = (rows.size * keyHeightDp * density + (rows.size - 1) * gap + 2 * pad).toInt()
+        var wanted = (rows.size * keyHeightDp * density + (rows.size - 1) * gap + 2 * pad).toInt()
+        // In landscape the chosen key height would leave the app only a sliver (on a phone, about 100 dp), so the
+        // keys take at most a share of the screen's height and shrink to fit.
+        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            wanted = minOf(wanted, (resources.displayMetrics.heightPixels * Tunables[KeysTuning.LANDSCAPE_KEYS]).toInt())
+        }
         // Android caps the keyboard window's height (in landscape on the tablet it is less than the chosen key
         // height needs). Take what is offered and shrink the keys in onLayout, so the bottom row never gets cut off.
         val h = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) wanted

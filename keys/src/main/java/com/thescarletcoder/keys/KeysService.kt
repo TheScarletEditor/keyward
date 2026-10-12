@@ -101,6 +101,12 @@ class KeysService : InputMethodService(), KeyListener {
         return panel
     }
 
+    /**
+     * Never Android's fullscreen ("extract") mode. By default it turns on in landscape on a short screen and covers
+     * the app with a copy of the text field, so the keyboard looks like it takes the whole screen.
+     */
+    override fun onEvaluateFullscreenMode(): Boolean = false
+
     private fun applyLook() {
         val palette = ScarletTokens.resolve(prefs.theme)
         panel.apply(KeyColors(palette), prefs.keyHeight, prefs.bubble, Motion.scale(this))

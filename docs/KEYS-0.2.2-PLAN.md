@@ -61,6 +61,15 @@ For the learned-words store and Forget. Each line becomes a check in slice 2 or 
 
 Each slice is one commit (or a small series), passes the build, unit tests and lint with no new errors, and is checked with `/finalize --slice` before the next starts. Order decided (Q4); slice 1 has no behaviour change and could ship alone.
 
+### Slice 0: landscape (L1, added 2026-10-12, built first)
+
+Owner, 2026-10-12: "texting in landscape, the keyboard takes up the whole screen." Two causes, both fixed:
+
+- Keys never turned off Android's fullscreen ("extract") mode, which by default turns on in landscape on a short screen and covers the app with a copy of the text field. `KeysService.onEvaluateFullscreenMode()` now returns false.
+- `Compact` went by the screen's current width, so a phone in landscape got the tablet's sizes and 64 dp keys. It now goes by the short side (`smallestScreenWidthDp`), so a phone stays a phone (phone sizes, letter bubble) in both orientations.
+- In landscape the keys take at most 40% of the screen's height and shrink to fit (tuning: Landscape, 0.25 to 0.6, personal and debug builds only).
+- Checks: unit tests and the personal build pass; the owner texts in landscape on the phone and the app stays visible above the keyboard; portrait unchanged on both devices; tablet landscape unchanged (its keys already fit under 40%). Emulator walk (phone, small phone, tablet, landscape) with the 0.2.2 release check.
+
 ### Slice 1: generic text and notices (K6, K7)
 
 - Replace the owner's name, pronouns, phone model and "the tablet" (where it means the owner's device) in comments, scripts and `CLAUDE.md` with neutral wording ("the owner", "the user", "a phone-width screen"), as Lyrics did on 2026-10-11. `CLAUDE.md` follows the Lyrics wording: folders "next to this one", "the backups it describes", no drive labels or script path.

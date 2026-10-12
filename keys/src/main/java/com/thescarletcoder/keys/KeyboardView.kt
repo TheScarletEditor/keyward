@@ -6,15 +6,20 @@ import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.Handler
+import android.os.Bundle
 import android.os.Looper
 import android.os.SystemClock
 import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.customview.widget.ExploreByTouchHelper
 import com.thescarletcoder.scarlet.Motion
 import com.thescarletcoder.scarlet.ScarletTokens
 import com.thescarletcoder.scarlet.Tunables
@@ -46,14 +51,20 @@ interface KeyPopups {
 class KeyboardView(context: Context, private val listener: KeyListener) : View(context) {
 
     var rows: List<List<Key>> = Layouts.letters
-        set(v) { field = v; closeAccents(); requestLayout(); invalidate() }
+        set(v) {
+            // TalkBack's focus was on a key of the old layout: let it go, or it lands on a different key (L4-1).
+            a11y.accessibilityFocusedVirtualViewId.takeIf { it != ExploreByTouchHelper.INVALID_ID }?.let {
+                a11y.getAccessibilityNodeProvider(this)?.performAction(it, AccessibilityNodeInfoCompat.ACTION_CLEAR_ACCESSIBILITY_FOCUS, null)
+            }
+            field = v; closeAccents(); requestLayout(); invalidate()
+        }
     var shift: Shift = Shift.OFF
-        set(v) { field = v; invalidate() }
+        set(v) { if (field != v) { field = v; invalidate(); a11y.invalidateRoot() } }
     var enterKind: EnterKind = EnterKind.RETURN
-        set(v) { field = v; invalidate() }
+        set(v) { field = v; invalidate(); a11y.invalidateRoot() }
     /** Shown on Enter when [enterKind] is WORD ("Next", "Done", "Back"). */
     var enterWord: String = ""
-        set(v) { field = v; invalidate() }
+        set(v) { field = v; invalidate(); a11y.invalidateRoot() }
     var keyHeightDp: Int = 64
         set(v) { field = v; requestLayout() }
     var colors: KeyColors = KeyColors(ScarletTokens.DARK)
@@ -185,7 +196,51 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
         keyOf = keys.toTypedArray()
         upperLabel = Array(n) { keyOf[it].label.let { l -> if (l.length == 1 && l[0].isLetter()) l.uppercase() else l } }
         accentsFor = Array(n) { keyOf[it].let { k -> if (k.type == KeyType.CHAR && k.label.length == 1) Layouts.accents[k.label[0]] else null } }
+        a11y.invalidateRoot()
     }
+
+    // ---- TalkBack (K4) ----
+
+    /**
+     * Each key is its own item for TalkBack: explore by touch, then lift (or double tap) to type it. Node info is built
+     * only when TalkBack asks, so drawing and touch handling allocate nothing more (D-013).
+     */
+    private val a11y = object : ExploreByTouchHelper(this) {
+        private val bounds = Rect()
+
+        override fun getVirtualViewAt(x: Float, y: Float): Int = keyAt(x, y).takeIf { it >= 0 } ?: INVALID_ID
+
+        override fun getVisibleVirtualViews(ids: MutableList<Int>) { for (i in 0 until n) ids += i }
+
+        override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
+            if (id !in 0 until n) { node.contentDescription = ""; node.setBoundsInParent(bounds.apply { setEmpty() }); return }
+            val k = keyOf[id]
+            node.contentDescription = KeyLabels.spoken(k, shift, enterKind, enterWord)
+            node.className = "android.widget.Button"
+            keyRect[id].roundOut(bounds)
+            node.setBoundsInParent(bounds)
+            node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+            if (k.alt != null || k.type == KeyType.SPACE) node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
+        }
+
+        override fun onPerformActionForVirtualView(id: Int, action: Int, args: Bundle?): Boolean {
+            if (id !in 0 until n) return false
+            val k = keyOf[id]
+            return when (action) {
+                AccessibilityNodeInfoCompat.ACTION_CLICK -> { listener.onPressFeedback(k); listener.onKey(k); true }
+                AccessibilityNodeInfoCompat.ACTION_LONG_CLICK -> when {
+                    k.type == KeyType.SPACE -> { listener.onSpaceLongPress(); true }
+                    k.alt != null -> { listener.onAlt(k.alt); true }
+                    else -> false
+                }
+                else -> false
+            }
+        }
+    }
+
+    init { ViewCompat.setAccessibilityDelegate(this, a11y) }
+
+    override fun dispatchHoverEvent(event: MotionEvent): Boolean = a11y.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
 
     override fun onDraw(canvas: Canvas) {
         val c = colors

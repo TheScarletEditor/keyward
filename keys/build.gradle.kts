@@ -78,6 +78,8 @@ dependencies {
     implementation(libs.compose.material3)
     // Installs Compose's bundled baseline profiles for sideloaded builds (no Play cloud profiles).
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+    // ExploreByTouchHelper: each key and suggestion as its own item for TalkBack (K4). Apache 2.0, under AndroidX in Credits.
+    implementation("androidx.customview:customview:1.1.0")
     testImplementation("junit:junit:4.13.2")
 }
 

@@ -2,6 +2,12 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, slice 4 wording)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q15 | What TalkBack says for each key, suggestion and Settings item | "Say \"Backspace\"" | As shown, with "Backspace" for the delete key. | `KeyLabelsTest`; TalkBack walk on the emulator. |
+
 ## 2026-10-12 (the owner, slice 3 mini-audit)
 
 | # | Question | Answer (word for word) | Effect | Check |

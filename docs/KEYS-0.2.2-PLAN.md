@@ -185,6 +185,10 @@ Full scope (decided, Q3):
 - No allocation added to drawing or touch handling (D-013): node info is built only when TalkBack asks.
 - Checks: a JVM test that every key in every layout has a non-empty spoken label; emulator with TalkBack on: type a word by touch, pick a suggestion, change theme; tap areas already at least 48dp.
 
+**Done 2026-10-12.** `ExploreByTouchHelper` (androidx.customview 1.1.0, Apache 2.0, under AndroidX in Credits) on the keyboard and the suggestion strip; spoken labels in `KeyLabels` (owner's wording, Q15: "Backspace" for the delete key); Settings switches are one item each (row toggleable, the inner switch's own semantics cleared); Theme and Key height pills are radio buttons in a group; Back and Forget are buttons. Nothing allocated in drawing or touch with TalkBack off (the helper checks first). `KeyLabelsTest` (every key in every layout and state has a label, every symbol a name). 42 unit tests, lint no errors. Emulator with TalkBack on: lift on "h" then "i" typed "hi"; lift on the middle suggestion picked "his"; focus then double tap on Dark switched the theme; switch rows are single items; Theme and Key height pills report checked or not.
+
+`/finalize --slice`: one review round, clean. Fixed while here: L4-1 TalkBack focus is cleared when the layout swaps (letters, symbols, number pad), so it doesn't land on a different key; L4-2 Theme and Key height rows are a selectable group ("1 of 3"). Noted for later (backlog): the accent row has no TalkBack route (long press types the digit); the highlighted suggestion (the autocorrect pick) is spoken like the others; on a phone the suggestion strip is 42 dp tall, under 48 dp (as since 0.2.0).
+
 ### Slice 5: release 0.2.2
 
 - versionName 0.2.2, versionCode 5; README and release notes match the code.

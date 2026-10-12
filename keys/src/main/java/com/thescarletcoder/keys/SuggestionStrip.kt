@@ -4,8 +4,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.Bundle
 import android.os.SystemClock
 import android.text.TextPaint
 import android.text.TextUtils
@@ -13,6 +15,9 @@ import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.customview.widget.ExploreByTouchHelper
 import com.thescarletcoder.scarlet.Motion
 import com.thescarletcoder.scarlet.ScarletTokens
 import com.thescarletcoder.scarlet.Tunables
@@ -27,7 +32,7 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
     var colors: KeyColors = KeyColors(ScarletTokens.DARK)
         set(v) { field = v; invalidate() }
     var privateField = false
-        set(v) { field = v; invalidate() }
+        set(v) { field = v; invalidate(); contentDescription = if (v) "Private field. Nothing learned." else null }
     var animScale = 1f
 
     private val density = resources.displayMetrics.density
@@ -65,7 +70,41 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
         highlight = highlightIndex
         ellipsize()
         invalidate()
+        a11y.invalidateRoot()
     }
+
+    /** Each suggestion is its own item for TalkBack ("Suggestion: hello"); a private field says so (K4). */
+    private val a11y = object : ExploreByTouchHelper(this) {
+        private val bounds = Rect()
+
+        override fun getVirtualViewAt(x: Float, y: Float): Int {
+            val slot = (x / (width / 3f)).toInt().coerceIn(0, 2)
+            return if (words[slot] != null) slot else INVALID_ID
+        }
+
+        override fun getVisibleVirtualViews(ids: MutableList<Int>) { for (i in 0 until 3) if (words[i] != null) ids += i }
+
+        override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
+            val w = words.getOrNull(id)
+            val slotW = width / 3
+            bounds.set(id * slotW, 0, (id + 1) * slotW, height)
+            node.setBoundsInParent(bounds)
+            if (w == null) { node.contentDescription = ""; return }
+            node.contentDescription = KeyLabels.suggestion(w)
+            node.className = "android.widget.Button"
+            node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+        }
+
+        override fun onPerformActionForVirtualView(id: Int, action: Int, args: Bundle?): Boolean {
+            val w = words.getOrNull(id) ?: return false
+            if (action != AccessibilityNodeInfoCompat.ACTION_CLICK) return false
+            onPick(w); return true
+        }
+    }
+
+    init { ViewCompat.setAccessibilityDelegate(this, a11y) }
+
+    override fun dispatchHoverEvent(event: MotionEvent): Boolean = a11y.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
 
     fun clear() = show(emptyList(), -1)
 

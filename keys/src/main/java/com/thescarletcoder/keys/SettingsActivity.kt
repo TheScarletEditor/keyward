@@ -58,6 +58,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
@@ -223,9 +227,9 @@ class SettingsActivity : ComponentActivity() {
 
                 Section("Feel", p, inter) {
                     Text("Theme", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         listOf(ThemeChoice.SYSTEM to "System", ThemeChoice.DARK to "Dark", ThemeChoice.LIGHT to "Light").forEach { (c, name) ->
-                            Pill(name, choice == c, p, inter) {
+                            Pill(name, choice == c, p, inter, choice = true) {
                                 choice = c; prefs.theme = c
                                 ScarletTokens.applyToSystem(this@SettingsActivity, c)
                             }
@@ -236,9 +240,9 @@ class SettingsActivity : ComponentActivity() {
                     var h by remember { mutableIntStateOf(prefs.keyHeight) }
                     Text("Key height", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
                     val compact = Compact.isCompact(this@SettingsActivity)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         (if (compact) listOf(44 to "Small", 50 to "Medium", 58 to "Large") else listOf(56 to "Small", 64 to "Medium", 76 to "Large"))
-                            .forEach { (dp, name) -> Pill(name, h == dp, p, inter) { h = dp; prefs.keyHeight = dp } }
+                            .forEach { (dp, name) -> Pill(name, h == dp, p, inter, choice = true) { h = dp; prefs.keyHeight = dp } }
                     }
                     var bubble by remember { mutableStateOf(prefs.bubble) }
                     if (compact) Toggle("Show the letter above your finger", "A bubble with the letter you're pressing, above your thumb.", bubble, p, inter) {
@@ -382,23 +386,35 @@ private fun Step(n: Int, title: String, status: String, done: Boolean, p: Scarle
 @Composable
 private fun Toggle(title: String, note: String?, initial: Boolean, p: ScarletPalette, font: FontFamily, onChange: (Boolean) -> Unit) {
     var on by remember { mutableStateOf(initial) }
-    Row(Modifier.fillMaxWidth().clickable { on = !on; onChange(on) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    // One item for TalkBack: "title, note, switch, on" (K4); the switch inside doesn't get its own stop.
+    Row(
+        Modifier.fillMaxWidth().toggleable(value = on, role = Role.Switch) { on = it; onChange(it) }.padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f).padding(end = 12.dp)) {
             Text(title, color = Color(p.text), fontSize = 18.sp, fontFamily = font)
             note?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = font) }
         }
-        ScarletSwitch(on, { on = it; onChange(it) }, p)
+        ScarletSwitch(on, { on = it; onChange(it) }, p, Modifier.clearAndSetSemantics {})
     }
 }
 
 @Composable
-private fun Pill(label: String, selected: Boolean, p: ScarletPalette, font: FontFamily, enabled: Boolean = true, onClick: () -> Unit) {
+private fun Pill(
+    label: String, selected: Boolean, p: ScarletPalette, font: FontFamily, enabled: Boolean = true,
+    /** One of a set (Theme, Key height): TalkBack says "radio button, selected" (K4). */
+    choice: Boolean = false,
+    onClick: () -> Unit,
+) {
     val shape = RoundedCornerShape(24.dp)
     Box(
         Modifier.defaultMinSize(minHeight = 48.dp).alpha(if (enabled) 1f else 0.5f).clip(shape)
             .background(Color(if (selected) p.tealWash else p.raised))
             .border(1.dp, Color(if (selected) p.tealEdge else p.line), shape)
-            .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp),
+            .then(
+                if (choice) Modifier.selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+                else Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+            ).padding(horizontal = 18.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) { Text(label, color = Color(p.text), fontSize = 16.sp, fontFamily = font, fontWeight = FontWeight.Medium) }
 }

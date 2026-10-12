@@ -12,9 +12,9 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Words Sam actually uses, so the keyboard stops "correcting" them and ranks them higher.
+ * Words the user actually uses, so the keyboard stops "correcting" them and ranks them higher.
  * Only words, with a use count: never sentences, never where they were typed.
- * Encrypted at rest with an Android Keystore key (AES-GCM). Only available after the tablet is unlocked.
+ * Encrypted at rest with an Android Keystore key (AES-GCM). Only available after the device is unlocked.
  * The service never records in password fields or fields that ask for no personalized learning.
  * One instance per process ([get]), so "Forget learned words" in Settings also empties the keyboard's copy in memory
  * (with two copies, the keyboard's next save wrote every forgotten word back).

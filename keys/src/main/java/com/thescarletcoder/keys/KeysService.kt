@@ -60,12 +60,12 @@ class KeysService : InputMethodService(), KeyListener {
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
     private var lastShiftTap = 0L
 
-    /** Set right after an autocorrect; one backspace puts back what Sam actually typed. */
+    /** Set right after an autocorrect; one backspace puts back what the user actually typed. */
     private var undo: Undo? = null
     private class Undo(val original: String, val corrected: String, val separator: String)
 
     /**
-     * Words Sam took back from autocorrect in this field (lowercase): never corrected again here, even where the
+     * Words the user took back from autocorrect in this field (lowercase): never corrected again here, even where the
      * field turns learning off. Held in memory only and cleared for each new field.
      */
     private val kept = HashSet<String>()
@@ -211,7 +211,7 @@ class KeysService : InputMethodService(), KeyListener {
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
-        // Sam tapped elsewhere in the text: stop working on the old word.
+        // The user tapped elsewhere in the text: stop working on the old word.
         if (composing.isNotEmpty() && (newSelStart != newSelEnd || candidatesEnd == -1 || newSelStart != candidatesEnd)) {
             composing.clear()
             currentInputConnection?.finishComposingText()
@@ -283,7 +283,7 @@ class KeysService : InputMethodService(), KeyListener {
 
     /**
      * Pick up the word the cursor sits at the end of, as the word being typed. Only at a word's end (a letter
-     * right after the cursor means Sam is editing inside a word; that's left alone). Returns true if it did.
+     * right after the cursor means the user is editing inside a word; that's left alone). Returns true if it did.
      */
     private fun resumeWord(): Boolean {
         val ic = currentInputConnection ?: return false
@@ -435,7 +435,7 @@ class KeysService : InputMethodService(), KeyListener {
 
     /**
      * Suggestions are worked out on a background thread so keys always respond instantly.
-     * Results that arrive after Sam has typed on are dropped.
+     * Results that arrive after the user has typed on are dropped.
      */
     private fun refreshSuggestions() {
         val d = dict
@@ -506,7 +506,7 @@ class KeysService : InputMethodService(), KeyListener {
         if (learnOn) userWords.record(word)
     }
 
-    /** Keep Sam's capitalisation: "Hello" -> "Hello", "HELLO" -> "HELLO". */
+    /** Keep the user's capitalisation: "Hello" -> "Hello", "HELLO" -> "HELLO". */
     private fun matchCase(typed: String, word: String): String = when {
         typed.length > 1 && typed.all { !it.isLetter() || it.isUpperCase() } -> word.uppercase()
         typed.firstOrNull()?.isUpperCase() == true -> word.replaceFirstChar { it.uppercaseChar() }

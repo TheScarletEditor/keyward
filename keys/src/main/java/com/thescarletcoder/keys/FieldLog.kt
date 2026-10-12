@@ -6,7 +6,7 @@ import android.text.InputType
 /**
  * Personal and debug builds only (BuildConfig.TUNING): the last few text boxes Keys opened in, as the app and the
  * kind of field it asked for, plus whether the number pad came up. Never any text. Stays on the device, in Keys'
- * own storage, so a field that should be numeric but says "text" can be found (Sam, 2026-10-09).
+ * own storage, so a field that should be numeric but says "text" can be found (the owner, 2026-10-09).
  */
 object FieldLog {
     private const val PREFS = "keys_fields"

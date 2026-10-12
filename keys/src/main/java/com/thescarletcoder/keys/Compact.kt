@@ -3,8 +3,8 @@ package com.thescarletcoder.keys
 import android.content.Context
 
 /**
- * Phone-width screens (the Flip's inner screen is about 411 dp wide) get tighter spacing and slightly smaller labels,
- * so ten keys fit a row comfortably. Same layout and behaviour as the tablet.
+ * Phone-width screens (a typical phone is about 400 dp wide) get tighter spacing and slightly smaller labels,
+ * so ten keys fit a row comfortably. Same layout and behaviour as on a tablet.
  * In landscape the keys also give up height so the app above stays usable (KeyboardView.onMeasure).
  */
 object Compact {

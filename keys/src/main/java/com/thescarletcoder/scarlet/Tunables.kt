@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 import androidx.compose.runtime.mutableIntStateOf
 
 /**
- * Feel values Sam tunes on the device without rebuilding (SCARLET-POLISH-FOUNDATION section 3).
+ * Feel values the owner tunes on the device without rebuilding (SCARLET-POLISH-FOUNDATION section 3).
  * Each app registers its own list once at startup. Reads are a plain in-memory lookup, cheap enough for every key press.
  */
 data class Tunable(

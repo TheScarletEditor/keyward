@@ -170,7 +170,7 @@ class SettingsActivity : ComponentActivity() {
                 }
 
                 if (BuildConfig.TUNING) {
-                    // Which fields asked for what (Sam, 2026-10-09: number fields don't always open the number pad).
+                    // Which fields asked for what (the owner, 2026-10-09: number fields don't always open the number pad).
                     Section("Recent fields", p, inter) {
                         val rows = remember { FieldLog.read(this@SettingsActivity) }
                         if (rows.isEmpty()) Text("Open a few text boxes, then come back.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)

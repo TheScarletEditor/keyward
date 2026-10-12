@@ -10,7 +10,7 @@ data class Key(
     val alt: String? = null,
 )
 
-/** Standard layouts. Sam tweaks from here (docs/KEYS-SPEC.md). */
+/** Standard layouts, the starting point for any tweaks (KEYS-SPEC.md in the Command repo). */
 object Layouts {
     /** Long-press accents (KEYS-POLISH-SPEC section 9). Keys not listed keep long press = digit. */
     val accents: Map<Char, String> = mapOf(

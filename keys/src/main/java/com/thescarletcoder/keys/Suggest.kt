@@ -6,7 +6,7 @@ import kotlin.math.min
 
 /**
  * Offline dictionary (assets/en.bin, built from tools/dict/en.dict: AOSP LatinIME, Apache 2.0; and tools/dict/extra.dict, newer names) with a keyboard-aware corrector.
- * Everything runs on the tablet. Nothing typed is stored here; learned words live in [UserWords].
+ * Everything runs on the device. Nothing typed is stored here; learned words live in [UserWords].
  */
 class Dictionary private constructor(
     private val lower: Array<String>,

@@ -27,7 +27,7 @@ class KeysPrefs(private val context: Context) {
         get() = p.getBoolean("autocorrect", true)
         set(v) = p.edit().putBoolean("autocorrect", v).apply()
 
-    /** Learn Sam's own words. Off until she turns it on. */
+    /** Learn the user's own words. Off until they turn it on. */
     var learn: Boolean
         get() = p.getBoolean("learn", false)
         set(v) = p.edit().putBoolean("learn", v).apply()
@@ -37,7 +37,7 @@ class KeysPrefs(private val context: Context) {
         get() = com.thescarletcoder.scarlet.ScarletTokens.parseChoice(p.getString("theme", null))
         set(v) = p.edit().putString("theme", v.name).apply()
 
-    /** "Show the letter above your finger": on by default on phone-width screens, never on the tablet. */
+    /** "Show the letter above your finger": on by default on phone-width screens, never on a tablet. */
     var bubble: Boolean
         get() = Compact.isCompact(context) && p.getBoolean("bubble", true)
         set(v) = p.edit().putBoolean("bubble", v).apply()
@@ -50,7 +50,7 @@ class KeysPrefs(private val context: Context) {
     fun listen(l: SharedPreferences.OnSharedPreferenceChangeListener) = p.registerOnSharedPreferenceChangeListener(l)
     fun unlisten(l: SharedPreferences.OnSharedPreferenceChangeListener) = p.unregisterOnSharedPreferenceChangeListener(l)
 
-    /** Key height in dp. Until Sam picks one: 64 on the tablet, 50 on a phone-width screen. */
+    /** Key height in dp. Until the user picks one: 64 on a tablet, 50 on a phone-width screen. */
     var keyHeight: Int
         get() = p.getInt("key_height", if (Compact.isCompact(context)) 50 else 64)
         set(v) = p.edit().putInt("key_height", v).apply()

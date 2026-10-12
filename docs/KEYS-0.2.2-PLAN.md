@@ -93,6 +93,20 @@ Owner, 2026-10-12: "Macbook tried to autocorrect. Does Keys not recognize brands
 - Add `licenses/Apache-2.0.txt` and a Credits line: "Jetpack Compose and AndroidX libraries (Apache 2.0)".
 - Checks: every pattern in the repo guard's private denylist, run over all tracked files except `tools/dict`, finds nothing (the patterns stay out of this repo); no pronoun for the owner remains; the repo guard passes the commit; build unchanged (no code changes).
 
+**Done 2026-10-12** (commit "0.2.2 slice 1: generic text, Apache 2.0 notice"). `/finalize --slice`: checklist pass, plan check (the private denylist over every tracked file except `tools/dict`: no hits; no pronoun for the owner, device model or em dash), one review agent, build, 10 unit tests and lint clean. Findings:
+
+- L1-1 (mechanical): the edit turned `UserWords.kt` from CRLF to LF, a whole-file rewrite. Restored and folded into the slice commit before it was pushed.
+- L1-2 (mechanical, text shown to the owner): Credits also name the Kotlin standard library and kotlinx.coroutines. Owner: "Use that wording (Recommended)".
+- L1-3 (question): the Apache text is in the repo but not in the APK. Owner: "Add to 0.2.2 (Recommended)", now slice 1b; Lyrics has the same gap (filed in scarlet-hq).
+- L1-4 (mechanical): `Layouts.kt` points at KEYS-SPEC.md in the Command repo instead of "the original spec".
+- Noted, no change: Q5's verbatim answer has the phone model replaced by "[phone]"; CLAUDE.md's backup line leaves the how to BACKUP-SPEC, as Lyrics does.
+
+### Slice 1b: licenses inside the app (L1-3, added 2026-10-12)
+
+- The license texts that cover what ships in the APK (Apache 2.0, and the fonts' OFL) go into the APK's assets, built from `licenses/` so there is one copy.
+- Settings gets an "Open source licenses" row that shows them (scrolling text, readable in light and dark, TalkBack reads it).
+- Checks: a build step or test fails if a file in `licenses/` is missing from the APK's assets; the row opens on the emulator and on the owner's devices; README Credits and the screen name the same things.
+
 ### Slice 2: learned words never vanish silently (K1)
 
 - Split `UserWords` into the file format and the store logic (plain Kotlin, JVM-testable with a fake cipher) and the Keystore part.

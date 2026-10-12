@@ -37,8 +37,8 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
-        // Sam's own devices: release-optimized (R8, not debuggable) but signed with this laptop's debug key,
-        // so it installs over debug installs and keeps learned words. Never install `release` on her devices.
+        // The owner's own devices: release-optimized (R8, not debuggable) but signed with this laptop's debug key,
+        // so it installs over debug installs and keeps learned words. Never install `release` on those devices.
         create("personal") {
             initWith(getByName("release"))
             signingConfig = signingConfigs.getByName("debug")
@@ -88,7 +88,7 @@ tasks.matching { it.name.matches(Regex("process[A-Za-z]+MainManifest")) }.config
             val banned = listOf("android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE")
                 .filter { f.readText().contains("\"$it\"") }
             if (banned.isNotEmpty()) {
-                throw GradleException("Merged manifest ${f.path} contains $banned. A dependency pulled in network access. Stop and flag it to Sam.")
+                throw GradleException("Merged manifest ${f.path} contains $banned. A dependency pulled in network access. Stop and flag it to the owner.")
             }
         }
     }

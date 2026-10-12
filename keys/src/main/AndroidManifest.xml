@@ -13,7 +13,7 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.Keys">
 
-        <!-- Direct-boot aware so it can type on the lock screen if the tablet uses a password. -->
+        <!-- Direct-boot aware so it can type on the lock screen if the device uses a password. -->
         <service
             android:name=".KeysService"
             android:exported="true"

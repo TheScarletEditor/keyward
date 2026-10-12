@@ -56,7 +56,7 @@ class KeyOverlay(context: Context) : View(context), KeyPopups {
 
     /**
      * Never ask for height of its own. A plain View takes all the height it's offered, which made the keyboard
-     * window as tall as the screen with the keys at the top (Sam, 2026-10-09). The panel's second measure pass
+     * window as tall as the screen with the keys at the top (the owner, 2026-10-09). The panel's second measure pass
      * then gives this overlay exactly the keyboard's height.
      */
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {

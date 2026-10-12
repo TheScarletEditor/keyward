@@ -11,7 +11,7 @@ import android.view.View
 import com.thescarletcoder.scarlet.Tunables
 
 /**
- * Key sound and haptics (KEYS-POLISH-SPEC section 10). Both stay off until Sam turns them on.
+ * Key sound and haptics (KEYS-POLISH-SPEC section 10). Both stay off until the user turns them on.
  * System services and vibration effects are made once, not per key press.
  */
 class Feedback(context: Context) {

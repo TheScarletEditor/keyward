@@ -152,7 +152,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
         if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
             wanted = minOf(wanted, (resources.displayMetrics.heightPixels * Tunables[KeysTuning.LANDSCAPE_KEYS]).toInt())
         }
-        // Android caps the keyboard window's height (in landscape on the tablet it is less than the chosen key
+        // Android caps the keyboard window's height (in landscape on a tablet it can be less than the chosen key
         // height needs). Take what is offered and shrink the keys in onLayout, so the bottom row never gets cut off.
         val h = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) wanted
             else minOf(wanted, MeasureSpec.getSize(heightMeasureSpec))

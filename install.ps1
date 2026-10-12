@@ -1,7 +1,7 @@
 # Build Scarlet Keys and install it over USB.
 #
 # Default is the `personal` build: release-optimized (fast, not debuggable) but signed with this laptop's debug key,
-# so it installs over earlier debug installs and keeps learned words. Never install a `release` build on Sam's
+# so it installs over earlier debug installs and keeps learned words. Never install a `release` build on the owner's
 # devices: a different key forces an uninstall, which wipes learned words.
 #
 # Run:

@@ -2,6 +2,13 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, slice 1 mini-audit)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q8 | L1-3: license text in the repo but not in the APK | "Add to 0.2.2 (Recommended)" | Slice 1b: license texts in the APK, an "Open source licenses" row in Settings. Lyrics gets the same in its next version. | Build or test fails if a `licenses/` file is missing from the APK assets; row checked on emulator and devices. |
+| Q9 | L1-2: Credits wording | "Use that wording (Recommended)" | README Credits: "Jetpack Compose, AndroidX, the Kotlin standard library and kotlinx.coroutines (Apache 2.0, `licenses/Apache-2.0.txt`)." | README matches the APK's bundled libraries. |
+
 ## 2026-10-12 (the owner, names)
 
 | # | Question | Answer (word for word) | Effect | Check |
@@ -12,7 +19,7 @@ Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-lo
 
 | # | Question | Answer (word for word) | Effect | Check |
 |---|---|---|---|---|
-| Q5 | Test the landscape fix (L1) where? | "Install on the Flip now (Recommended)" | Personal build on both devices before the emulator check (the emulator was in use by another session). | The owner texts in landscape on the phone. |
+| Q5 | Test the landscape fix (L1) where? | "Install on the [phone] now (Recommended)" (phone model left out of the public repo) | Personal build on both devices before the emulator check (the emulator was in use by another session). | The owner texts in landscape on the phone. |
 | Q6 | Where does the landscape fix ship? | "Fold into 0.2.2 (Recommended)" | Slice 0 of the 0.2.2 plan, ships with 0.2.2. | Emulator walk in landscape with the 0.2.2 release check. |
 
 ## 2026-10-11 (the owner, on the 0.2.2 plan)

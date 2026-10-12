@@ -3,6 +3,7 @@ package com.thescarletcoder.keys
 import android.content.Intent
 import android.graphics.Color.TRANSPARENT
 import android.os.Bundle
+import android.os.StrictMode
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
@@ -45,6 +46,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -80,9 +82,11 @@ import com.thescarletcoder.scarlet.Tunables
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.DEBUG) StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().penaltyLog().build())
         val prefs = KeysPrefs(this)
         KeysTuning.init(this)
-        val words = UserWords.get(this).also { it.load() }
+        // Loaded off the main thread below (K5).
+        val words = UserWords.get(this)
         val inter = FontFamily(Font(R.font.inter_regular, FontWeight.Normal), Font(R.font.inter_medium, FontWeight.Medium))
         val fraunces = FontFamily(Font(R.font.fraunces_display))
 
@@ -174,7 +178,14 @@ class SettingsActivity : ComponentActivity() {
                         prefs.learn, p, inter,
                     ) { prefs.learn = it }
                     // The list's state, if there's anything to say (Q2, Q12). Forget clears every case and starts a new list.
-                    var notice by remember { mutableStateOf(words.notice) }
+                    // Nothing shows until the store has been read off the main thread (K5).
+                    var status by remember { mutableStateOf<UserWords.Status?>(null) }
+                    LaunchedEffect(Unit) { words.loadAsync { status = it } }
+                    var forgetting by remember { mutableStateOf(false) }
+                    var forgetResult by rememberSaveable { mutableStateOf<String?>(null) } // survives rotation
+                    var forgetFailed by rememberSaveable { mutableStateOf(false) } // keeps the pill to try again
+                    val notice = status?.notice ?: WordStore.Notice.NONE
+                    val count = status?.count ?: 0
                     val noticeText = when (notice) {
                         WordStore.Notice.SET_ASIDE -> "Your learned words couldn't be read on this device, so it started a new list."
                         WordStore.Notice.NEWER -> "Your learned words were saved by a newer version of Scarlet Keys. This version leaves them as they are and won't learn new words."
@@ -182,10 +193,17 @@ class SettingsActivity : ComponentActivity() {
                         WordStore.Notice.NONE -> null
                     }
                     noticeText?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = inter) }
-                    var count by remember { mutableIntStateOf(words.count) }
-                    if (count > 0 || noticeText != null) Pill(if (count > 0) "Forget learned words ($count)" else "Forget learned words", false, p, inter) {
-                        words.clear(); count = words.count; notice = words.notice
+                    if (count > 0 || noticeText != null || forgetFailed) {
+                        // One Forget at a time (Forget 3); "Forgotten." only when every copy is gone (Forget 1).
+                        Pill(if (count > 0) "Forget learned words ($count)" else "Forget learned words", false, p, inter, enabled = !forgetting) {
+                            forgetting = true; forgetResult = null
+                            words.forgetAsync { ok, s ->
+                                forgetting = false; status = s; forgetFailed = !ok
+                                forgetResult = if (ok) "Forgotten." else "Couldn't forget your words. Try again."
+                            }
+                        }
                     }
+                    forgetResult?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = inter) }
                 }
 
                 Section("Feel", p, inter) {
@@ -359,13 +377,13 @@ private fun Toggle(title: String, note: String?, initial: Boolean, p: ScarletPal
 }
 
 @Composable
-private fun Pill(label: String, selected: Boolean, p: ScarletPalette, font: FontFamily, onClick: () -> Unit) {
+private fun Pill(label: String, selected: Boolean, p: ScarletPalette, font: FontFamily, enabled: Boolean = true, onClick: () -> Unit) {
     val shape = RoundedCornerShape(24.dp)
     Box(
-        Modifier.defaultMinSize(minHeight = 48.dp).clip(shape)
+        Modifier.defaultMinSize(minHeight = 48.dp).alpha(if (enabled) 1f else 0.5f).clip(shape)
             .background(Color(if (selected) p.tealWash else p.raised))
             .border(1.dp, Color(if (selected) p.tealEdge else p.line), shape)
-            .clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp),
+            .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) { Text(label, color = Color(p.text), fontSize = 16.sp, fontFamily = font, fontWeight = FontWeight.Medium) }
 }

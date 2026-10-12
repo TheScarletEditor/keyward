@@ -562,7 +562,8 @@ class KeysService : InputMethodService(), KeyListener {
     override fun onDestroy() {
         if (::prefs.isInitialized) prefs.unlisten(prefsChanged)
         if (::feedback.isInitialized) feedback.release()
-        if (::prefs.isInitialized && prefs.learn) userWords.save()
+        // On the worker, which finishes queued work after shutdown(): no file or Keystore work on the main thread (K5).
+        if (::prefs.isInitialized && prefs.learn) worker.execute { userWords.save() }
         worker.shutdown()
         super.onDestroy()
     }

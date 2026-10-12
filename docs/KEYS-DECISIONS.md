@@ -2,6 +2,12 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, slice 3 mini-audit)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q14 | L3-4: preference files still read on the main thread when Settings opens | "Move them off too" | Slice 3b: settings, tuning values and "Recent fields" read off the main thread. | StrictMode (debug) shows no main-thread disk work in Settings. |
+
 ## 2026-10-12 (the owner, slice 2 mini-audit)
 
 | # | Question | Answer (word for word) | Effect | Check |

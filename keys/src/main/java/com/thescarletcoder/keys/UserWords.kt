@@ -1,6 +1,8 @@
 package com.thescarletcoder.keys
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.os.UserManager
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
@@ -11,6 +13,7 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import java.util.concurrent.Executors
 
 /**
  * Words the user actually uses, so the keyboard stops "correcting" them and ranks them higher.
@@ -23,7 +26,7 @@ import javax.crypto.spec.GCMParameterSpec
  */
 class UserWords private constructor(context: Context) {
     private val store = WordStore(
-        dir = context.noBackupFilesDir,
+        dirProvider = { context.noBackupFilesDir },
         sealer = KeystoreSealer,
         unlocked = { context.getSystemService(UserManager::class.java).isUserUnlocked },
     )
@@ -47,6 +50,28 @@ class UserWords private constructor(context: Context) {
 
     /** "Forget learned words": true only when every copy is gone. */
     fun clear(): Boolean = store.clear()
+
+    /** What Settings shows: the count and the notice, if any. */
+    data class Status(val count: Int, val notice: WordStore.Notice)
+
+    /**
+     * For Settings: the file and Keystore work on a background thread, the answer on the main thread. The thread
+     * belongs to the store, not the screen, so a Forget started before Settings closes still finishes (Forget 4).
+     */
+    fun loadAsync(done: (Status) -> Unit) = io.execute {
+        store.load()
+        val s = Status(store.count, store.notice)
+        main.post { done(s) }
+    }
+
+    fun forgetAsync(done: (Boolean, Status) -> Unit) = io.execute {
+        val ok = store.clear()
+        val s = Status(store.count, store.notice)
+        main.post { done(ok, s) }
+    }
+
+    private val io = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
 
     /** AES-GCM with a Keystore key; the 12-byte IV goes first. */
     private object KeystoreSealer : WordStore.Sealer {

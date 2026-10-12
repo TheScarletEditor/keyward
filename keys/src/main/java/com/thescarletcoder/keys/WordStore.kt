@@ -11,11 +11,21 @@ import java.io.File
  * Files from 0.2.1 have no format byte (format 0).
  */
 class WordStore(
-    private val dir: File,
+    dirProvider: () -> File,
     private val sealer: Sealer,
     private val unlocked: () -> Boolean = { true },
     private val move: (File, File) -> Boolean = { from, to -> from.renameTo(to) },
+    private val delete: (File) -> Boolean = { it.delete() },
 ) {
+    /** Plain directory, for tests. */
+    constructor(
+        dir: File, sealer: Sealer, unlocked: () -> Boolean = { true },
+        move: (File, File) -> Boolean = { from, to -> from.renameTo(to) }, delete: (File) -> Boolean = { it.delete() },
+    ) : this({ dir }, sealer, unlocked, move, delete)
+
+    /** Found on first use, which is always a file operation off the main thread (asking Android for it can touch the disk). */
+    private val dir by lazy(dirProvider)
+
     /** Encryption for the file. [open] throws [Unreadable] when the data can never be read, anything else when it may be passing. */
     interface Sealer {
         fun seal(plain: ByteArray): ByteArray
@@ -151,16 +161,18 @@ class WordStore(
     }
 
     /**
-     * "Forget learned words": memory first, under the same lock, so no save can write old words back (5); then every
-     * copy on disk. True only when all of them are gone.
+     * "Forget learned words": every copy on disk, then memory, all under the same lock, so a keyboard save can't run in
+     * between and write old words back (Forget 2). True only when every copy is gone (Forget 1). The list itself goes
+     * last, so a failed delete always leaves it on disk, with the words and count as they were (L3-1).
      */
     @Synchronized
     fun clear(): Boolean {
+        val gone = (listOf(tmp) + setAsideFiles() + file).all { !it.exists() || delete(it) }
+        if (!gone) { if (state == State.LOADED) dirty = true; return false }
         counts.clear()
         dirty = false
-        val gone = (listOf(file, tmp) + setAsideFiles()).all { !it.exists() || it.delete() }
-        if (gone) { state = State.LOADED; refusedNewer = false; passingFailures = 0 }
-        return gone
+        state = State.LOADED; refusedNewer = false; passingFailures = 0
+        return true
     }
 
     private fun setAsideFile() {

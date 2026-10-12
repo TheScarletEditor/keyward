@@ -34,7 +34,8 @@ class WordStoreTest {
     private val sealer = FakeSealer()
     private val dir get() = tmp.root
     private val enc get() = File(dir, "words.enc")
-    private fun store(move: (File, File) -> Boolean = { a, b -> a.renameTo(b) }) = WordStore(dir, sealer, move = move)
+    private fun store(move: (File, File) -> Boolean = { a, b -> a.renameTo(b) }, delete: (File) -> Boolean = { it.delete() }) =
+        WordStore(dir, sealer, move = move, delete = delete)
     private fun writeList(body: ByteArray) = enc.writeBytes(sealer.seal(body))
     private fun format1(text: String) = byteArrayOf(WordStore.FORMAT.toByte()) + text.toByteArray()
 
@@ -216,6 +217,34 @@ class WordStoreTest {
         s.save() // the keyboard saving right after
         assertFalse(enc.exists()); assertFalse(s.hasSetAside)
         val t = store(); t.load(); assertEquals(0, t.count)
+    }
+
+    @Test fun forgetRemovesEveryCopy() {
+        val s = store(); s.load()
+        repeat(2) { s.record("zorbex") }; s.save()
+        File(dir, "words.tmp").writeBytes(byteArrayOf(1))
+        File(dir, "words.unreadable").writeBytes(byteArrayOf(2))
+        File(dir, "words.unreadable-2").writeBytes(byteArrayOf(3))
+        assertTrue(s.clear())
+        assertEquals(emptyList<String>(), dir.list()!!.toList())
+        assertEquals(0, s.count)
+    }
+
+    @Test fun failedDeleteReportsFailureAndKeepsTheWords() {
+        val s = store(delete = { false }); s.load()
+        repeat(2) { s.record("zorbex") }; s.record("quillet"); s.save()
+        assertFalse(s.clear())
+        assertEquals("count kept", 2, s.count)
+        assertTrue(s.isKnown("zorbex"))
+        val t = store(); t.load(); assertTrue("file kept", t.isKnown("zorbex"))
+    }
+
+    @Test fun aPartlyFailedForgetLeavesTheListOnDisk() {
+        val s = store(delete = { f -> f.name != "words.unreadable" && f.delete() }); s.load()
+        repeat(2) { s.record("zorbex") }; s.save()
+        File(dir, "words.unreadable").writeBytes(byteArrayOf(1))
+        assertFalse(s.clear())
+        val t = store(); t.load(); assertTrue("the list is still on disk", t.isKnown("zorbex"))
     }
 
     /** Letters-only made-up words: a, b, ..., z, ba, bb, ... */

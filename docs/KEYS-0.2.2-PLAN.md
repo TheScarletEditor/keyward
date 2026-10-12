@@ -52,7 +52,7 @@ For the learned-words store and Forget. Each line becomes a check in slice 2 or 
 ### Forget learned words
 
 1. **Delete fails** (file in use, storage error). Decided: `clear()` reports success only when `words.enc`, `words.tmp` and `words.unreadable` are all gone. Settings then shows "Forgotten." and hides the pill; on failure it shows "Couldn't forget your words. Try again." and keeps the count.
-2. **The keyboard saves right after Forget.** Covered by the single store (D-017): memory is emptied first, under the same lock, so nothing old can be written back. Test kept as a JVM test.
+2. **The keyboard saves right after Forget.** Covered by the single store (D-017): the files and then memory are cleared under the same lock, so nothing old can be written back (the list file goes last, so a failed Forget leaves it on disk, L3-1). Test kept as a JVM test.
 3. **Tapped twice.** The pill does one Forget at a time and is disabled while it runs.
 4. **Settings closed mid-Forget.** The work runs off the main thread and is not tied to the screen, so it finishes; the next open reads the true count.
 5. **What Forget doesn't touch:** the Keystore key stays (it holds no words); the "Learn my words" setting stays as it was. Decided: say so in nothing; the pill text is enough.
@@ -157,6 +157,19 @@ Owner, 2026-10-12: "Macbook tried to autocorrect. Does Keys not recognize brands
 - Settings loads the count off the main thread (shows nothing until it's known, then the pill); The `onDestroy` save (`KeysService.kt:500`) goes to the worker before it shuts down.
 - Tests (JVM): Forget removes all three files; delete failure reports failure and keeps the count; Forget then save writes nothing back.
 - Emulator: Forget with words, Forget pill gone, reopen Settings shows no pill; StrictMode (debug only) shows no disk read on the main thread in Settings.
+
+**Done 2026-10-12.** `WordStore.clear()` true only when every copy is gone; Settings reads the store through `UserWords.loadAsync`/`forgetAsync` (its own thread, not the screen's, so a Forget finishes after Settings closes), shows nothing until the answer, disables the pill while a Forget runs, then "Forgotten." or "Couldn't forget your words. Try again." (Q4). The service's `onDestroy` save runs on its worker. StrictMode thread policy in debug builds. 22 `WordStoreTest` tests (39 in all), lint no errors. Emulator (debug build): Forget with 4 words showed "Forgotten." and hid the pill; reopened, no pill, no line. StrictMode: no learned-words or Keystore frames on the main thread; the preference files still are (slice 3b, Q14).
+
+`/finalize --slice`: two review rounds. Findings, all mechanical and fixed: L3-1 a partly failed Forget could delete the list and still say it was kept (the list file is now deleted last, so a failure always leaves it on disk; test `aPartlyFailedForgetLeavesTheListOnDisk`); L3-2 a failed Forget before the list loaded dropped the "needs saving" mark; L3-3 rotation lost the Forget result line (kept across rotation); L3-4 asking Android for the store's folder touched the disk on the main thread (looked up on first file use, in the background); L3-5 a failed Forget could hide the pill and leave no way to try again. Noted: a rotation while a Forget runs shows the right state after, but not the "Forgotten." line.
+
+### Slice 3b: preferences off the main thread too (Q14, added 2026-10-12)
+
+Owner, on L3-4: "Move them off too". StrictMode in Settings (debug) still shows the preference files read on the main thread: `KeysPrefs` (the settings), `KeysTuning`/`Tunables` (tuning values) and `FieldLog` ("Recent fields", debug builds only).
+
+- Read them on a background thread before Settings draws its rows; until then the page shows only the header (no flash of wrong values).
+- Writes from Settings (toggles, theme, key height) go through `apply()` already (asynchronous); check none use `commit()`.
+- The keyboard service reads the same preferences; it is out of this slice unless StrictMode shows its reads on the keyboard's main thread too (then a question).
+- Checks: StrictMode (debug build) shows no disk read or write on the main thread when Settings opens, scrolls, toggles a setting and opens Tuning and the licenses; rotation keeps every value; the emulator walk in light and dark.
 
 ### Slice 4: accessibility (K4)
 

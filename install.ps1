@@ -1,4 +1,4 @@
-# Build Scarlet Keys and install it over USB.
+# Build Keyward and install it over USB.
 #
 # Default is the `personal` build: release-optimized (fast, not debuggable) but signed with this laptop's debug key,
 # so it installs over earlier debug installs and keeps learned words. Never install a `release` build on the owner's
@@ -25,11 +25,11 @@ if (-not $Serial) {
 
 $type = if ($Debug) { 'debug' } else { 'personal' }
 $task = if ($Debug) { 'assembleDebug' } else { 'assemblePersonal' }
-Write-Host "Building Scarlet Keys ($type)..."
+Write-Host "Building Keyward ($type)..."
 cmd /c ".\gradlew.bat :keys:$task --console=plain -q"
 if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
 
 Write-Host "Installing..."
 & $adb -s $Serial install -r ".\keys\build\outputs\apk\$type\keys-$type.apk"
 if ($LASTEXITCODE -ne 0) { Write-Host "Install failed."; exit 1 }
-Write-Host "Done. Scarlet Keys ($type) is installed."
+Write-Host "Done. Keyward ($type) is installed."

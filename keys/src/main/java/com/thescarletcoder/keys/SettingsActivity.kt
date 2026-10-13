@@ -196,10 +196,10 @@ class SettingsActivity : ComponentActivity() {
                 Section("Set up", p, inter) {
                     if (enabled && current) Ready(p, inter, firstTime = !prefs.readyShown) { prefs.readyShown = true }
                     else {
-                        Step(1, "Turn on Scarlet Keys", if (enabled) "On" else "Not on yet", enabled, p, inter) {
+                        Step(1, "Turn on Keyward", if (enabled) "On" else "Not on yet", enabled, p, inter) {
                             startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
                         }
-                        Step(2, "Switch to Scarlet Keys", if (current) "In use" else "Not in use", current, p, inter) {
+                        Step(2, "Switch to Keyward", if (current) "In use" else "Not in use", current, p, inter) {
                             imm.showInputMethodPicker()
                         }
                     }
@@ -219,8 +219,8 @@ class SettingsActivity : ComponentActivity() {
                     val count = status?.count ?: 0
                     val noticeText = when (notice) {
                         WordStore.Notice.SET_ASIDE -> "Your learned words couldn't be read on this device, so it started a new list."
-                        WordStore.Notice.NEWER -> "Your learned words were saved by a newer version of Scarlet Keys. This version leaves them as they are and won't learn new words."
-                        WordStore.Notice.NOT_LEARNING -> "Your learned words couldn't be read, so Scarlet Keys isn't learning new words for now."
+                        WordStore.Notice.NEWER -> "Your learned words were saved by a newer version of Keyward. This version leaves them as they are and won't learn new words."
+                        WordStore.Notice.NOT_LEARNING -> "Your learned words couldn't be read, so Keyward isn't learning new words for now."
                         WordStore.Notice.NONE -> null
                     }
                     noticeText?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = inter) }
@@ -271,7 +271,7 @@ class SettingsActivity : ComponentActivity() {
                     ScarletField(t, { t = it }, "Type here to test", p, inter)
                 }
 
-                NavCard("Open source licenses", "The free software Scarlet Keys is built with, and its licenses.", "Open", p, inter,
+                NavCard("Open source licenses", "The free software Keyward is built with, and its licenses.", "Open", p, inter,
                     role = Role.Button, clickLabel = "Open the licenses") { mainScroll = scroll.value; licenses = true }
 
                 if (BuildConfig.TUNING) {
@@ -295,8 +295,8 @@ private fun Header(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily) {
             Canvas(Modifier.size(84.dp)) { drawCircle(Color(p.scarlet).copy(alpha = 0.14f)) }
             Image(painterResource(R.mipmap.ic_launcher_foreground), contentDescription = null, modifier = Modifier.size(112.dp))
         }
-        Text("Scarlet Keys", color = Color(p.text), fontSize = 36.sp, fontFamily = fraunces)
-        Text("Your keyboard. No internet access, nothing typed is ever logged or sent anywhere.",
+        Text("Keyward", color = Color(p.text), fontSize = 36.sp, fontFamily = fraunces)
+        Text("A keyboard by The Scarlet Coder. No internet access, nothing typed is ever logged or sent anywhere.",
             color = Color(p.soft), fontSize = 16.sp, fontFamily = inter)
     }
 }
@@ -313,7 +313,7 @@ private fun Ready(p: ScarletPalette, inter: FontFamily, firstTime: Boolean, onSh
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Check(Color(p.teal))
-            Text("Ready. Scarlet Keys is on and in use.", color = Color(p.text), fontSize = 17.sp, fontFamily = inter)
+            Text("Ready. Keyward is on and in use.", color = Color(p.text), fontSize = 17.sp, fontFamily = inter)
         }
     }
 }
@@ -334,7 +334,7 @@ private fun Preview(p: ScarletPalette, keyHeight: Int, bubble: Boolean) {
     @Suppress("UNUSED_VARIABLE") val tuned = Tunables.version.intValue
     AndroidView(
         factory = { ctx ->
-            KeyboardPanel(ctx, NoKeys, {}).also { it.strip.show(listOf("Scarlet", "Keys", "keyboard"), 1) }
+            KeyboardPanel(ctx, NoKeys, {}).also { it.strip.show(listOf("Your", "Keyward", "keyboard"), 1) }
         },
         update = { panel ->
             panel.apply(KeyColors(p), keyHeight, bubble, Motion.scale(context))

@@ -1,9 +1,10 @@
+- Scarlet Keys is now Keyward: same keyboard, same promise, a name of its own.
 - Landscape: the keyboard no longer covers the whole screen, and a phone keeps its phone-sized keys when you turn it.
 - Fixed: two quick backspaces could remove the spaces between earlier words.
 - Fixed: typing a period could sometimes erase the word before it.
 - "i" becomes "I", and "im" and "ive" become "I'm" and "I've" ("i.e." stays as typed).
 - Knows newer names like MacBook, AirPods, Venmo and TikTok, and never autocorrects a word you capitalise yourself in the middle of a sentence.
-- Works with TalkBack: every key, suggestion and setting is spoken, and you type by lifting your finger.
+- Works with TalkBack: every key, suggestion and setting is spoken, you type by lifting your finger, and accents are in the actions menu.
 - Learned words are safer: a list that can't be read is set aside, never overwritten, and "Forget learned words" only says "Forgotten." when every copy is gone.
 - Settings: an Open source licenses page, and it keeps your place when you rotate.
 - Still no network access.

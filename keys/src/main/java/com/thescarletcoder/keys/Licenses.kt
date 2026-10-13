@@ -10,7 +10,7 @@ object Licenses {
     data class Part(val name: String, val license: String, val asset: String)
 
     val parts = listOf(
-        Part("Scarlet Keys", "GNU General Public License 3.0", "licenses/LICENSE"),
+        Part("Keyward", "GNU General Public License 3.0", "licenses/LICENSE"),
         Part("Jetpack Compose, AndroidX, the Kotlin standard library and kotlinx.coroutines", "Apache License 2.0", "licenses/Apache-2.0.txt"),
         Part("English word list, from the Android Open Source Project", "Apache License 2.0", "DICTIONARY-NOTICE.txt"),
         Part("Inter font", "SIL Open Font License 1.1", "licenses/Inter-OFL.txt"),

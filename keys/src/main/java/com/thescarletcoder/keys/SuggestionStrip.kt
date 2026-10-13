@@ -40,6 +40,7 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
     private val shown = arrayOfNulls<String>(3)
     private val slotStart = LongArray(3)
     private var highlight = -1
+    private var replacing = false
     private var pressedSlot = -1
 
     private val inter = ResourcesCompat.getFont(context, R.font.inter_regular) ?: Typeface.DEFAULT
@@ -61,7 +62,9 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
         style = Paint.Style.STROKE; strokeWidth = KeyIcons.STROKE * lockPx / KeyIcons.GRID; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
     }
 
-    fun show(list: List<String>, highlightIndex: Int) {
+    /** [replaces]: the highlighted word is a fix space will swap in (not just the word as typed), for TalkBack (Q25). */
+    fun show(list: List<String>, highlightIndex: Int, replaces: Boolean = false) {
+        replacing = replaces
         val now = SystemClock.uptimeMillis()
         for (i in 0 until 3) {
             val w = list.getOrNull(i)
@@ -90,7 +93,7 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
             bounds.set(id * slotW, 0, (id + 1) * slotW, height)
             node.setBoundsInParent(bounds)
             if (w == null) { node.contentDescription = ""; return }
-            node.contentDescription = KeyLabels.suggestion(w)
+            node.contentDescription = KeyLabels.suggestion(w, replaces = replacing && id == highlight)
             node.className = "android.widget.Button"
             node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
         }

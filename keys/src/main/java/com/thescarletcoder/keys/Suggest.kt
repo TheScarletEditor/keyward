@@ -141,7 +141,7 @@ class Dictionary private constructor(
          */
         fun loadBinary(input: java.io.InputStream): Dictionary = java.io.DataInputStream(java.io.BufferedInputStream(input, 1 shl 16)).use { d ->
             val magic = ByteArray(4); d.readFully(magic)
-            require(String(magic, Charsets.US_ASCII) == "SKD1") { "not a Scarlet Keys dictionary" }
+            require(String(magic, Charsets.US_ASCII) == "SKD1") { "not a Keyward dictionary" }
             val n = d.readInt()
             val lower = arrayOfNulls<String>(n); val display = arrayOfNulls<String>(n)
             val freq = IntArray(n); val offensive = BooleanArray(n)

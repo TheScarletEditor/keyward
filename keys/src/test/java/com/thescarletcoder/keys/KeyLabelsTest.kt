@@ -30,6 +30,21 @@ class KeyLabelsTest {
         }
     }
 
+    @Test fun everyAccentHasAnActionName() {
+        Layouts.accents.values.forEach { accents ->
+            assertTrue("more accents than TalkBack actions: $accents", accents.length <= 4)
+            accents.forEach { ch ->
+                assertEquals(ch.toString(), KeyLabels.accent(ch, Shift.OFF))
+                assertEquals(ch.uppercaseChar().toString(), KeyLabels.accent(ch, Shift.ONE))
+            }
+        }
+    }
+
+    @Test fun theHighlightedSuggestionSaysItWillReplace() {
+        assertEquals("Suggestion: hello", KeyLabels.suggestion("hello"))
+        assertEquals("Suggestion: hello, will replace", KeyLabels.suggestion("hello", replaces = true))
+    }
+
     @Test fun iconKeysSayWhatTheyDo() {
         val enter = Key("enter", KeyType.ENTER)
         assertEquals("Send", KeyLabels.spoken(enter, Shift.OFF, EnterKind.SEND, ""))

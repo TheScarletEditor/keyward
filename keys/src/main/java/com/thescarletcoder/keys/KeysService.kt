@@ -15,7 +15,7 @@ import com.thescarletcoder.scarlet.ScarletTokens
 import java.util.concurrent.Executors
 
 /**
- * Scarlet Keys (docs/KEYS-SPEC.md). No network permission. Never logs or stores what's typed;
+ * Keyward, formerly Scarlet Keys (docs/KEYS-SPEC.md). No network permission. Never logs or stores what's typed;
  * only optional learned single words, encrypted, and never from password or no-learning fields.
  */
 class KeysService : InputMethodService(), KeyListener {
@@ -517,7 +517,7 @@ class KeysService : InputMethodService(), KeyListener {
                 if (my != seq || composing.toString() != typed) return@post
                 autocorrectPick = pick
                 pickFor = typed
-                strip.show(list, highlight)
+                strip.show(list, highlight, replaces = pick != null && highlight == 1)
             }
         }
     }

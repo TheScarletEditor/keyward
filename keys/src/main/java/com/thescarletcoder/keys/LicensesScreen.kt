@@ -33,7 +33,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun LicensesList(p: ScarletPalette, font: FontFamily, onOpen: (Licenses.Part) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Scarlet Keys is free software. It's built with these, each under its own license.",
+        Text("Keyward is free software. It's built with these, each under its own license.",
             color = Color(p.soft), fontSize = 16.sp, fontFamily = font)
         Licenses.parts.forEach { part ->
             NavCard(part.name, part.license, "Read", p, font, titleSize = 17, role = Role.Button, clickLabel = "Read the license") { onOpen(part) }

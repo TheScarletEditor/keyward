@@ -1,4 +1,6 @@
-# Scarlet Keys
+# Keyward
+
+Formerly Scarlet Keys.
 
 An Android keyboard that never touches the internet. By [The Scarlet Coder](https://thescarletcoder.com).
 
@@ -33,6 +35,6 @@ The same license texts ship inside the app: Settings, Open source licenses.
 
 ## License
 
-Scarlet Keys is free software: you can use it, study it, change it and share it under the [GNU General Public License v3.0](LICENSE). If you share a changed version, it has to stay open under the same license.
+Keyward is free software: you can use it, study it, change it and share it under the [GNU General Public License v3.0](LICENSE). If you share a changed version, it has to stay open under the same license.
 
 Copyright (C) 2026 The Scarlet Coder. Fonts, libraries and the word list keep their own licenses, listed under Credits.

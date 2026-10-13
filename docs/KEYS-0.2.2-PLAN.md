@@ -199,6 +199,8 @@ The owner, during /finalize 0.2.2 Stage 5: "I would prefer to finish up this pro
 
 **6c. Keyward (D-021, Q18 to Q21).** Every visible "Scarlet Keys" becomes Keyward; package id, folder names and the dictionary's internal magic stay. App name and keyboard label "Keyward"; space bar "KEYWARD"; Settings header "Keyward" / "A keyboard by The Scarlet Coder. No internet access, nothing typed is ever logged or sent anywhere."; set-up lines, notices, licenses intro and list use Keyward; README title Keyward with "Formerly Scarlet Keys." under it; release notes start "Scarlet Keys is now Keyward: same keyboard, same promise, a name of its own."; release.ps1 writes `dist/keyward-<version>.apk`; scripts' messages say Keyward. At ship: the GitHub repo is renamed to `keyward` (with the owner's OK at that step), the git remote and scarlet-hq's repo map follow, and the site's links are updated in the site step. Checks: grep finds no "Scarlet Keys" in user-visible strings (code, res, README) except "Formerly Scarlet Keys." and the release-note line; screenshots of the header, the space bar and the keyboard picker label.
 
+**Built 2026-10-12.** Slice check (a review agent and an audit agent, both on slice 6): clean apart from wording, settled in Q23 to Q26; "will replace" only on real fixes; the preview's sample words and the word list notice no longer read "Scarlet Keys". 51 unit tests, lint no errors.
+
 Not folded in: KB-7 (taller strip; owner left it out), swipe typing (declined), custom key sounds (parked "later"), F-Droid (its own project), the skipped cleanups C5 (no behaviour change, not needed).
 
 Backup: the owner's skip for 0.2.2 (Q22), recorded in Command STATUS-AUDIT.

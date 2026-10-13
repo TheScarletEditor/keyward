@@ -233,6 +233,12 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
             node.setBoundsInParent(bounds)
             node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
             if (k.alt != null || k.type == KeyType.SPACE || k.type == KeyType.SHIFT) node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
+            // The accent row isn't reachable by exploring, so each accent is its own action on the key (KB-5).
+            accentsFor[id]?.forEachIndexed { i, ch ->
+                if (i < ACCENT_ACTIONS.size) node.addAction(
+                    AccessibilityNodeInfoCompat.AccessibilityActionCompat(ACCENT_ACTIONS[i], KeyLabels.accent(ch, shift)),
+                )
+            }
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, args: Bundle?): Boolean {
@@ -240,6 +246,10 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
             val k = keyOf[id]
             return when (action) {
                 AccessibilityNodeInfoCompat.ACTION_CLICK -> { listener.onPressFeedback(k); listener.onKey(k); true }
+                in ACCENT_ACTIONS -> {
+                    val ch = accentsFor[id]?.getOrNull(ACCENT_ACTIONS.indexOf(action)) ?: return false
+                    listener.onAlt(KeyLabels.accent(ch, shift)); true
+                }
                 AccessibilityNodeInfoCompat.ACTION_LONG_CLICK -> when {
                     k.type == KeyType.SPACE -> { listener.onSpaceLongPress(); true }
                     k.type == KeyType.SHIFT -> { listener.onShiftLock(); true }
@@ -513,7 +523,8 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
 
     companion object {
         private const val MAX_POINTERS = 16
-        private const val WORDMARK = "SCARLET KEYS"
+        private const val WORDMARK = "KEYWARD"
+        private val ACCENT_ACTIONS = intArrayOf(R.id.a11y_accent_0, R.id.a11y_accent_1, R.id.a11y_accent_2, R.id.a11y_accent_3)
         private const val WORDMARK_FADE_MS = 400f
 
         /** ARGB blend from [a] to [b] (t 0..1), no allocation. */

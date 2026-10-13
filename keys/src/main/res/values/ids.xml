@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TalkBack actions for a key's accents (KB-5): one id per position in the accent row. -->
+    <item name="a11y_accent_0" type="id" />
+    <item name="a11y_accent_1" type="id" />
+    <item name="a11y_accent_2" type="id" />
+    <item name="a11y_accent_3" type="id" />
+</resources>

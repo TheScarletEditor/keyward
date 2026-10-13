@@ -1,4 +1,4 @@
-# Scarlet Keys dictionary
+# Keyward dictionary
 
 `en.dict` (this folder) is the source word list, built from AOSP LatinIME `dictionaries/en_wordlist.combined.gz` (Apache 2.0).
 Format: `word<TAB>frequency(0-255)<TAB>o-if-possibly-offensive`, sorted case-insensitively.

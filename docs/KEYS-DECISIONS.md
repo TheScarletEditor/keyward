@@ -2,6 +2,15 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, slice 6 wording)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q23 | Settings preview's sample suggestions | "Your \| Keyward \| keyboard (Recommended)" | Preview strip shows Your / Keyward / keyboard, Keyward highlighted. | Screenshot. |
+| Q24 | The word list notice's credit | "\"Keyward, formerly Scarlet Keys\" (Recommended)" | "...by tools/dict (Keyward, formerly Scarlet Keys, 2026-10-07)". | File. |
+| Q25 | New spoken text (accents, "will replace") | "OK, only on real fixes (Recommended)" | Accent actions named by the bare character (capital with Shift); "Suggestion: X, will replace" only when space will swap in a fix. | KeyLabelsTest; review. |
+| Q26 | Release notes TalkBack line | "Add accents (Recommended)" | "Works with TalkBack: every key, suggestion and setting is spoken, you type by lifting your finger, and accents are in the actions menu." | Release notes. |
+
 ## 2026-10-12 (the owner, /prep resume before the release)
 
 | # | Question | Answer (word for word) | Effect | Check |

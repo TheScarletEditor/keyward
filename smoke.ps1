@@ -1,4 +1,4 @@
-# Build the smoke copy of Scarlet Keys, install it and open its settings, so /finalize can drive it over adb.
+# Build the smoke copy of Keyward, install it and open its settings, so /finalize can drive it over adb.
 #
 # Keys Smoke (com.thescarletcoder.keys.smoke) is release-optimized exactly like the public build (R8, not
 # debuggable) but has its own app id and the debug key. It installs next to the regular Keys with its own learned words

@@ -3,7 +3,7 @@
 - Save a word: when Keyward doesn't know a word you type, tap "+ Save" above the keys and it's never corrected again. Taking back a correction saves the word too.
 - Words are learned after three uses, and a capital letter no longer stops a correction: save a name once and it stays as you typed it.
 - Locked down: the keyboard is blacked out in screenshots, screen recordings and screen sharing; no letter bubble or accents in password fields; while your phone is locked only the dictionary is used and your words leave memory; incognito boxes get dictionary suggestions only.
-- Your words file keeps no typing order, and words used only once or twice are stored as fingerprints that can't be read back.
+- Your words file keeps no typing order, and words used only once or twice aren't stored as text, only as scrambled fingerprints.
 - Enter is now teal; scarlet marks delete buttons.
 - Landscape: the keyboard no longer covers the whole screen, and a phone keeps its phone-sized keys when you turn it.
 - Fixed: two quick backspaces could remove the spaces between earlier words.

@@ -76,8 +76,8 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
-    // Installs Compose's bundled baseline profiles and ours (src/main/baseline-prof.txt: every class of the app, so the
-    // typing path is compiled ahead of time) for sideloaded builds (no Play cloud profiles).
+    // Installs Compose's bundled baseline profiles and ours (src/main/baseline-prof.txt: the classes of the typing path and
+    // field start, so they're compiled ahead of time) for sideloaded builds (no Play cloud profiles).
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     // ExploreByTouchHelper: each key and suggestion as its own item for TalkBack (K4). Apache 2.0, under AndroidX in Credits.
     implementation(libs.androidx.customview)
@@ -113,14 +113,16 @@ tasks.matching { it.name.matches(Regex("process[A-Za-z]+MainManifest")) }.config
             val components = listOf("activity", "activity-alias", "service", "receiver", "provider").flatMap(::names).filterNot { it in allowed }
             val queries = doc.getElementsByTagName("queries").length
             // Code that runs at every process start, keyboard included, comes in as androidx.startup meta-data (A-C2).
-            val startup = names("meta-data").filter { it.startsWith("androidx.") && it.endsWith("Initializer") }.filterNot {
-                it == "androidx.lifecycle.ProcessLifecycleInitializer" || it == "androidx.profileinstaller.ProfileInstallerInitializer"
-            }
+            val startup = doc.getElementsByTagName("meta-data").let { l -> (0 until l.length).map { l.item(it) as org.w3c.dom.Element } }
+                .filter { it.getAttributeNS(ns, "value") == "androidx.startup" }.map { it.getAttributeNS(ns, "name") }.filterNot {
+                    it == "androidx.lifecycle.ProcessLifecycleInitializer" || it == "androidx.profileinstaller.ProfileInstallerInitializer"
+                }
             val app = doc.getElementsByTagName("application").item(0) as org.w3c.dom.Element
             val appProblems = listOfNotNull(
                 "allowBackup".takeIf { app.getAttributeNS(ns, "allowBackup") != "false" },
                 "usesCleartextTraffic".takeIf { app.hasAttributeNS(ns, "usesCleartextTraffic") },
                 "networkSecurityConfig".takeIf { app.hasAttributeNS(ns, "networkSecurityConfig") },
+                "testOnly".takeIf { app.getAttributeNS(ns, "testOnly") == "true" },
             )
             if (permissions.isNotEmpty() || components.isNotEmpty() || queries > 0 || startup.isNotEmpty() || appProblems.isNotEmpty()) {
                 throw GradleException(

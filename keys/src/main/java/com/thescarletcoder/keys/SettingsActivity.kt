@@ -126,6 +126,14 @@ class SettingsActivity : ComponentActivity() {
         @Volatile var warm: Pair<KeysPrefs, List<String>>? = null
     }
 
+    /** The PIN prompt that's up, if any: closed with this screen, so a rotation never leaves it pointing at the old one. */
+    private var asking: CancellationSignal? = null
+
+    override fun onDestroy() {
+        asking?.cancel(); asking = null
+        super.onDestroy()
+    }
+
     /** Your words asks for the phone's PIN, fingerprint or face first, when the phone has one (Q35). */
     private fun confirmItsYou(open: () -> Unit) {
         if (!getSystemService(KeyguardManager::class.java).isDeviceSecure) { open(); return }
@@ -134,8 +142,9 @@ class SettingsActivity : ComponentActivity() {
             .setSubtitle("Confirm it's you to see your words.")
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
             .build()
-            .authenticate(CancellationSignal(), mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = open()
+            .authenticate(CancellationSignal().also { asking = it }, mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { asking = null; open() }
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) { asking = null }
             })
     }
 
@@ -146,6 +155,10 @@ class SettingsActivity : ComponentActivity() {
             if (hide) View.IMPORTANT_FOR_CONTENT_CAPTURE_NO_EXCLUDE_DESCENDANTS else View.IMPORTANT_FOR_CONTENT_CAPTURE_AUTO
         window.decorView.importantForAutofill =
             if (hide) View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS else View.IMPORTANT_FOR_AUTOFILL_AUTO
+        // Only accessibility tools that are real assistive tech (TalkBack, Switch Access) can read the words (Q42).
+        window.decorView.setAccessibilityDataSensitive(
+            if (hide) View.ACCESSIBILITY_DATA_SENSITIVE_YES else View.ACCESSIBILITY_DATA_SENSITIVE_AUTO,
+        )
     }
 
     private fun show(prefs: KeysPrefs, fields: List<String>) {
@@ -194,7 +207,9 @@ class SettingsActivity : ComponentActivity() {
             val wordsOpen = wordsPage
             DisposableEffect(wordsOpen) {
                 if (wordsOpen) hideFromCapture(true)
-                onDispose { if (wordsOpen) hideFromCapture(false) }
+                // Leaving the page drops the words from memory too: Keyward may not be the keyboard in use, so no screen
+                // off would ever drop them (Q33). Read again when needed.
+                onDispose { if (wordsOpen) { hideFromCapture(false); if (!isChangingConfigurations) words.unloadInBackground() } }
             }
             BackHandler(enabled = licenses && reading == null) { licenses = false }
             BackHandler(enabled = reading != null) { readingIndex = -1 }
@@ -234,7 +249,7 @@ class SettingsActivity : ComponentActivity() {
                             modifier = Modifier.weight(1f).semantics { heading() })
                         Pill("Back", false, p, inter) { wordsPage = false }
                     }
-                    WordsPage(words, status, { status = it }, forgetting, forgetOk, forget, prefs.learn, p, inter)
+                    WordsPage(words, status, { status = it }, forgetting, forgetOk, forget, prefs.learn, p, inter) { forgetOk = null }
                     return@Column
                 }
                 if (tuning) {
@@ -285,9 +300,7 @@ class SettingsActivity : ComponentActivity() {
                 }
 
                 Section("Feel", p, inter) {
-                    Text("Theme", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
-                    // Wraps onto a second line at large text sizes instead of squeezing the pills (R4).
-                    FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ChoiceRow("Theme", p, inter) {
                         listOf(ThemeChoice.SYSTEM to "System", ThemeChoice.DARK to "Dark", ThemeChoice.LIGHT to "Light").forEach { (c, name) ->
                             Pill(name, choice == c, p, inter, choice = true) {
                                 choice = c; prefs.theme = c
@@ -298,10 +311,8 @@ class SettingsActivity : ComponentActivity() {
                     Toggle("Key sound", null, prefs.sound, p, inter) { prefs.sound = it }
                     Toggle("Key vibration", null, prefs.vibrate, p, inter) { prefs.vibrate = it }
                     var h by remember { mutableIntStateOf(prefs.keyHeight) }
-                    Text("Key height", color = Color(p.text), fontSize = 18.sp, fontFamily = inter)
                     val compact = Compact.isCompact(this@SettingsActivity)
-                    // Wraps onto a second line at large text sizes instead of squeezing the pills (R4).
-                    FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ChoiceRow("Key height", p, inter) {
                         (if (compact) listOf(44 to "Small", 50 to "Medium", 58 to "Large") else listOf(56 to "Small", 64 to "Medium", 76 to "Large"))
                             .forEach { (dp, name) -> Pill(name, h == dp, p, inter, choice = true) { h = dp; prefs.keyHeight = dp } }
                     }
@@ -309,7 +320,7 @@ class SettingsActivity : ComponentActivity() {
                     if (compact) Toggle("Show the letter above your finger", "A bubble with the letter you're pressing, above your thumb.", bubble, p, inter) {
                         prefs.bubble = it; bubble = it
                     }
-                    Preview(p, h, bubble && compact)
+                    Box(Modifier.padding(top = 4.dp)) { Preview(p, h, bubble && compact) }
                 }
 
                 Section("Try it", p, inter) {
@@ -413,6 +424,21 @@ private fun Section(title: String, p: ScarletPalette, font: FontFamily, content:
     }
 }
 
+/**
+ * A label with its choice pills, kept together, padded like a [Toggle] row so every row in a section is the same
+ * distance apart. The pills wrap onto a second line at large text sizes instead of squeezing (R4).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ChoiceRow(label: String, p: ScarletPalette, font: FontFamily, pills: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(label, color = Color(p.text), fontSize = 18.sp, fontFamily = font)
+        FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            pills()
+        }
+    }
+}
+
 @Composable
 private fun Step(n: Int, title: String, status: String, done: Boolean, p: ScarletPalette, font: FontFamily, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
@@ -458,7 +484,8 @@ internal fun Pill(
         Modifier.defaultMinSize(minHeight = 48.dp).alpha(if (enabled) 1f else 0.5f).clip(shape)
             .background(Color(if (selected) p.tealWash else p.raised))
             .then(
-                if (danger) Modifier.border(1.5.dp, Color(p.scarlet), shape)
+                // Slightly lighter in dark so the outline reaches 3:1 on the button (Q44).
+                if (danger) Modifier.border(1.5.dp, Color(if (p.dark) 0xFFF0323E.toInt() else p.scarlet), shape)
                 else Modifier.border(1.dp, Color(if (selected) p.tealEdge else p.line), shape),
             )
             .then(

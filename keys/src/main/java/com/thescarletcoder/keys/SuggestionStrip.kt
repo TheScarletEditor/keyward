@@ -58,7 +58,8 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
     }
     private val chip = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = interMedium; textAlign = Paint.Align.CENTER
-        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11f, resources.displayMetrics)
+        // In dp like the strip's words, so large text sizes can't push it out of its pill or squeeze the word out.
+        textSize = size.stripText * 0.7f * this@SuggestionStrip.density
     }
     private val chipLine = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1 * density }
     private val chipPad = 7 * density
@@ -79,7 +80,8 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
         val now = SystemClock.uptimeMillis()
         for (i in 0 until 3) {
             val w = list.getOrNull(i)
-            if (w != words[i]) { words[i] = w; slotStart[i] = if (w == null) 0L else now }
+            // A finger already down on this slot doesn't pick the new word on lift (it never saw it).
+            if (w != words[i]) { words[i] = w; slotStart[i] = if (w == null) 0L else now; if (i == pressedSlot) pressedSlot = -1 }
         }
         highlight = highlightIndex
         ellipsize()
@@ -181,7 +183,7 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
                 val left = cx - (wordW + chipGap + chipW) / 2
                 canvas.drawText(w, left + wordW / 2, cy - (paint.descent() + paint.ascent()) / 2, paint)
                 val cl = left + wordW + chipGap
-                val ch = 11 * density
+                val ch = (chip.descent() - chip.ascent()) / 2 + 3 * density
                 pill.set(cl, cy - ch, cl + chipW, cy + ch)
                 chipLine.color = c.save; chipLine.alpha = alpha
                 canvas.drawRoundRect(pill, ch, ch, chipLine)

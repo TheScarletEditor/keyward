@@ -451,7 +451,8 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
                     if (pick != null) listener.onAlt(pick)
                 } else if (idx >= 0 && !consumed[id] && keyOf[idx].type != KeyType.DELETE) listener.onKey(keyOf[idx])
                 consumed[id] = false
-                if (bubbleEnabled) popups?.bubbleUp()
+                // Always: the bubble may have been shown before the field changed to one without it (a password field).
+                popups?.bubbleUp()
                 invalidate()
             }
             MotionEvent.ACTION_CANCEL -> {
@@ -522,8 +523,8 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
 
     /** The keyboard went away mid-touch: no delete repeat or long press may keep running (slice 8). */
     fun stopTouches() {
-        cancelTimers()
-        closeAccents()
+        pointerKey.fill(-1); consumed.fill(false); downCount.fill(0)
+        cancelTimers(); closeAccents(); popups?.bubbleUp(); invalidate()
     }
 
     override fun onDetachedFromWindow() {

@@ -1,9 +1,8 @@
 # Build Keyward and install it over USB.
 #
 # Default is the `personal` build: release-optimized (fast, not debuggable), signed with the owner's personal key
-# (Q36): a key only the owner holds, so no other build can replace Keyward on their devices. Asks for the key password
-# (hidden); it goes to apksigner through an environment variable only this script's process can see, cleared right
-# after. Never stored, never on the command line.
+# (Q36): a key only the owner holds, so no other build can replace Keyward on their devices. apksigner itself asks for
+# the key password (hidden): it never passes through this script, an environment variable, a file or a command line.
 #
 # Never a debuggable build on a real device (Q36): -Debug only installs on an emulator.
 # Never install a `release` build on the owner's devices: a different key forces an uninstall, which wipes learned words.
@@ -46,7 +45,7 @@ if ($Debug) {
     $real = @($Serial | Where-Object { -not $_.StartsWith('emulator-') })
     if ($real.Count -gt 0) { Write-Host "Debug builds only go on emulators, never a real device ($($real -join ', '))."; exit 1 }
     Write-Host "Building Keyward (debug)..."
-    cmd /c ".\gradlew.bat :keys:assembleDebug --console=plain -q"
+    cmd /c ".\gradlew.bat :keys:assembleDebug --dependency-verification=strict --console=plain -q"
     if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
     $apk = ".\keys\build\outputs\apk\debug\keys-debug.apk"
 } else {
@@ -57,7 +56,7 @@ if ($Debug) {
     }
     if (-not $NoBuild) {
         Write-Host "Building Keyward (personal)..."
-        cmd /c ".\gradlew.bat :keys:assemblePersonal --console=plain -q"
+        cmd /c ".\gradlew.bat :keys:assemblePersonal --dependency-verification=strict --console=plain -q"
         if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
     }
     $unsigned = ".\keys\build\outputs\apk\personal\keys-personal-unsigned.apk"
@@ -65,14 +64,9 @@ if ($Debug) {
     Write-Host "Signing the personal build from $((Get-Item $unsigned).LastWriteTime)."
     New-Item -ItemType Directory -Force .\keys\build\personal-signed | Out-Null
     $apk = ".\keys\build\personal-signed\keys-personal.apk"
-    $secure = Read-Host "Personal key password" -AsSecureString
-    $env:KEYWARD_PERSONAL_PASS = [System.Net.NetworkCredential]::new('', $secure).Password
-    try {
-        & $apksigner sign --ks $keystore --ks-key-alias $alias --ks-pass env:KEYWARD_PERSONAL_PASS --out $apk $unsigned
-        $signed = $LASTEXITCODE -eq 0
-    } finally {
-        Remove-Item Env:KEYWARD_PERSONAL_PASS -ErrorAction SilentlyContinue
-    }
+    Write-Host "apksigner asks for the personal key password next."
+    & $apksigner sign --ks $keystore --ks-key-alias $alias --out $apk $unsigned
+    $signed = $LASTEXITCODE -eq 0
     if (-not $signed) { Write-Host "Signing failed. Wrong password?"; exit 1 }
     Remove-Item "$apk.idsig" -ErrorAction SilentlyContinue
 }
@@ -93,6 +87,7 @@ foreach ($s in $Serial) {
     }
     if ($out -notmatch 'Success') { Write-Host "$s : install failed."; exit 1 }
     & $adb -s $s shell ime enable "$package/.KeysService" | Out-Null
-    & $adb -s $s shell ime set "$package/.KeysService" | Out-Null
+    $set = & $adb -s $s shell ime set "$package/.KeysService" | Out-String
+    if ($set -notmatch 'selected') { Write-Host "$s : installed, but couldn't switch to Keyward. Pick it in Android's keyboard settings." }
 }
 Write-Host "Done. Keyward is installed."

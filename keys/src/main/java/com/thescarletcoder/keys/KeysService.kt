@@ -99,18 +99,31 @@ class KeysService : InputMethodService(), KeyListener {
             if (BuildConfig.TUNING) Log.d(TAG, "dictionary loaded in ${SystemClock.elapsedRealtime() - t} ms (${dict?.size ?: 0} words)")
             userWords.loadInBackground()
         }
-        // The screen going off drops the words from memory; they're read again at the next field after unlock (Q33).
-        registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF), RECEIVER_NOT_EXPORTED)
+        // The screen going off drops the words from memory (Q33); they're read again when it comes back on or the phone
+        // is unlocked (a field that stayed open needs them too), and at the next field.
+        registerReceiver(screen, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_USER_PRESENT)
+        }, RECEIVER_NOT_EXPORTED)
     }
 
-    private val screenOff = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) { userWords.unloadInBackground() }
+    private val screen = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_SCREEN_OFF) {
+                userWords.unloadInBackground()
+                // Words held for this field go too: taken-back words, the undo, the strip.
+                kept.clear(); undo = null; pickFor = null; autocorrectPick = null
+                if (::panel.isInitialized) strip.clear()
+            } else if (userWordsOn) userWords.loadInBackground() // does nothing while locked
+        }
     }
 
     override fun onCreateInputView(): View {
         // No screenshots, screen recordings, screen sharing or AI screen reading of the keyboard, anywhere (Q34).
         window.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         panel = KeyboardPanel(this, this) { word, save -> pick(word, save) }
+        // Suggestions show learned and saved words: only accessibility tools that are real assistive tech (TalkBack,
+        // Switch Access) can read the keyboard, not other apps with accessibility access (Q42).
+        panel.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_YES)
         // The keyboard window reaches behind the navigation bar; keep the keys above it so Android's
         // hide-keyboard and switch-keyboard buttons never sit on top of ?123 and Enter.
         panel.keepAboveNavigation()
@@ -202,7 +215,10 @@ class KeysService : InputMethodService(), KeyListener {
 
         keyboard.rows = if (numeric) Layouts.numpad else Layouts.letters
         // Personal and debug builds: never private or password boxes, never before the first unlock (Q38).
-        if (BuildConfig.TUNING && !password && !noLearning && !noSuggestFlag) FieldLog.add(this, info.packageName, cls, variation, numeric)
+        if (BuildConfig.TUNING && !password && !noLearning && !noSuggestFlag) {
+            val pkg = info.packageName; val num = numeric
+            worker.execute { FieldLog.add(this, pkg, cls, variation, num) } // prefs on disk: never the main thread
+        }
         keyboard.enterKind = if (!useEnterAction) EnterKind.RETURN else when (enterAction) {
             EditorInfo.IME_ACTION_SEND -> EnterKind.SEND
             EditorInfo.IME_ACTION_GO -> EnterKind.GO
@@ -218,6 +234,8 @@ class KeysService : InputMethodService(), KeyListener {
             else -> ""
         }
 
+        // A fix worked out in another field (or with other words in use) never applies here.
+        pickFor = null
         // A field that restarts mid-word (some messaging apps do, as text changes) keeps the word marked as being
         // typed; let it go, or the next space or period replaces that word (KB-2).
         finishComposing()
@@ -415,6 +433,7 @@ class KeysService : InputMethodService(), KeyListener {
             ic.deleteSurroundingText(u.corrected.length + u.separator.length, 0)
             ic.commitText(u.original + u.separator, 1)
             kept += u.original.lowercase()
+            pickFor = null
             // Taking a fix back saves the word: never corrected again, anywhere (Q29).
             if (learnOn) { userWords.record(u.original); userWords.keep(u.original) }
             strip.clear()
@@ -461,6 +480,9 @@ class KeysService : InputMethodService(), KeyListener {
     /** A suggestion tapped; [save]: it was the typed word with "+ Save", kept as typed and saved (Q28). */
     private fun pick(word: String, save: Boolean) {
         val ic = currentInputConnection ?: return
+        // "+ Save" only for the word as typed right now: never a word the strip showed a moment earlier.
+        if (save && word != composing.toString()) return
+        pickFor = null
         val final = if (save) word else if (composing.isNotEmpty()) matchCase(composing.toString(), word) else word
         ic.commitText("$final ", 1)
         learn(final)
@@ -601,7 +623,7 @@ class KeysService : InputMethodService(), KeyListener {
         )) || (cls == InputType.TYPE_CLASS_NUMBER && variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD)
 
     override fun onDestroy() {
-        runCatching { unregisterReceiver(screenOff) }
+        runCatching { unregisterReceiver(screen) }
         if (::prefs.isInitialized) prefs.unlisten(prefsChanged)
         if (::feedback.isInitialized) feedback.release()
         // On the worker, which finishes queued work after shutdown(): no file or Keystore work on the main thread (K5).

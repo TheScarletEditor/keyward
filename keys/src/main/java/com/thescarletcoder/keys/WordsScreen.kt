@@ -2,6 +2,8 @@ package com.thescarletcoder.keys
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -18,11 +20,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.InterceptPlatformTextInput
+import androidx.compose.ui.platform.PlatformTextInputMethodRequest
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -48,15 +56,18 @@ private const val MAX_ROWS = 200
 internal fun WordsPage(
     words: UserWords, status: UserWords.Status?, onStatus: (UserWords.Status) -> Unit,
     forgetting: Boolean, forgetOk: Boolean?, onForget: () -> Unit, learnOn: Boolean, p: ScarletPalette, font: FontFamily,
+    /** A word was saved or removed: an earlier "Forgotten." no longer describes the list. */
+    onChanged: () -> Unit = {},
 ) {
     var entries by remember { mutableStateOf<List<WordStore.Entry>?>(null) }
     // Read again after every change here, and when the count or notice changes (Forget, from the main screen).
     var changes by remember { mutableIntStateOf(0) }
     LaunchedEffect(status, changes) { words.entriesAsync { e, s -> entries = e; if (s != status) onStatus(s) } }
-    var query by rememberSaveable { mutableStateOf("") }
+    // Not saved with the screen's state: a searched word must not outlive the page (it closes when Keyward leaves the screen).
+    var query by remember { mutableStateOf("") }
     // The word whose Remove was tapped once (Q30: two taps to delete).
-    var confirming by rememberSaveable { mutableStateOf<String?>(null) }
-    var confirmForget by rememberSaveable { mutableStateOf(false) }
+    var confirming by remember { mutableStateOf<String?>(null) }
+    var confirmForget by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
 
@@ -68,16 +79,20 @@ internal fun WordsPage(
     noticeText(status?.notice)?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = font) }
     if (!learnOn) Text("Learn my words is off: nothing new is learned, and your saved words still count.", color = Color(p.soft), fontSize = 14.sp, fontFamily = font)
 
-    // No suggestions or learning in this box: searching must never teach the keyboard what was searched.
-    ScarletField(
+    // No suggestions or learning in this box: searching must never teach the keyboard what was searched, whichever keyboard
+    // is in use (the no-learning flag every keyboard should honour, plus Keyward's own marker).
+    NoLearning { ScarletField(
         query, { query = it; message = null }, "Search or add a word", p, font,
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false,
             platformImeOptions = PlatformImeOptions(Words.NO_LEARN),
         ),
-    )
+    ) }
     val q = query.trim().lowercase()
-    val list = entries
+    // A list that couldn't be read just now (a passing error) says so, instead of looking empty.
+    val unread = status?.loaded == false
+    val list = entries?.takeUnless { unread }
+    if (unread) Text("Couldn't read your words just now. Open this page again in a moment.", color = Color(p.text), fontSize = 15.sp, fontFamily = font)
     val shown = list?.filter { q.isEmpty() || it.word.contains(q) }.orEmpty()
 
     // A word not on the list can be saved from here ("Search, remove or add").
@@ -90,12 +105,15 @@ internal fun WordsPage(
                 words.keepAsync(q) { ok, s ->
                     busy = false
                     message = if (ok) "Saved \"$q\"." else "Couldn't save \"$q\"."
-                    onStatus(s); changes++
+                    onStatus(s); changes++; if (ok) onChanged()
                 }
             }
         }
     }
-    message?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = font, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+    // Always there, so TalkBack hears each new message (a live region announces changes, not new nodes).
+    Box(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
+        message?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = font) }
+    }
 
     when {
         list == null -> Unit
@@ -111,7 +129,11 @@ internal fun WordsPage(
                     onKeep = { confirming = null },
                     onConfirm = {
                         busy = true; confirming = null
-                        words.removeAsync(e.word) { s -> busy = false; message = "Removed \"${e.word}\"."; onStatus(s); changes++ }
+                        words.removeAsync(e.word) { ok, s ->
+                            busy = false
+                            message = if (ok) "Removed \"${e.word}\"." else "Couldn't remove \"${e.word}\". Try again."
+                            onStatus(s); changes++; if (ok) onChanged()
+                        }
                     },
                 )
             }
@@ -126,6 +148,8 @@ internal fun WordsPage(
         if (!confirmForget) {
             Pill("Forget all words", false, p, font, enabled = !forgetting, danger = true) { confirmForget = true }
         } else {
+            val ask = remember { FocusRequester() }
+            LaunchedEffect(Unit) { runCatching { ask.requestFocus() } }
             Text(
                 when {
                     held > count -> "Forget all your words, including ones used only once or twice? This can't be undone."
@@ -134,6 +158,8 @@ internal fun WordsPage(
                     else -> "Forget all your words? This can't be undone."
                 },
                 color = Color(p.text), fontSize = 16.sp, fontFamily = font,
+                // TalkBack lands on the question, not at the top of the page (the button it was on is gone).
+                modifier = Modifier.focusRequester(ask).focusable().semantics { liveRegion = LiveRegionMode.Polite },
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Pill("Keep", false, p, font) { confirmForget = false }
@@ -141,9 +167,8 @@ internal fun WordsPage(
             }
         }
     }
-    forgetOk?.let { ok ->
-        Text(if (ok) "Forgotten." else "Couldn't forget your words. Try again.", color = Color(p.soft), fontSize = 14.sp, fontFamily = font,
-            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+    Box(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
+        forgetOk?.let { ok -> Text(if (ok) "Forgotten." else "Couldn't forget your words. Try again.", color = Color(p.soft), fontSize = 14.sp, fontFamily = font) }
     }
 }
 
@@ -164,7 +189,11 @@ private fun WordRow(
                 Pill("Remove", false, p, font, enabled = !busy, danger = true, clickLabel = "Remove ${e.word}", onClick = onRemove)
             }
         } else {
-            Text("Remove \"${e.word}\"?", color = Color(p.text), fontSize = 17.sp, fontFamily = font)
+            val ask = remember { FocusRequester() }
+            LaunchedEffect(Unit) { runCatching { ask.requestFocus() } }
+            // TalkBack lands on the question, not at the top of the page (the Remove it was on is gone).
+            Text("Remove \"${e.word}\"?", color = Color(p.text), fontSize = 17.sp, fontFamily = font,
+                modifier = Modifier.focusRequester(ask).focusable().semantics { liveRegion = LiveRegionMode.Polite })
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Pill("Keep", false, p, font, onClick = onKeep)
                 Pill("Remove", false, p, font, enabled = !busy, danger = true, clickLabel = "Remove ${e.word} for good", onClick = onConfirm)
@@ -180,3 +209,18 @@ internal fun noticeText(notice: WordStore.Notice?): String? = when (notice) {
     WordStore.Notice.NOT_LEARNING -> "Your learned words couldn't be read, so Keyward isn't learning new words for now."
     WordStore.Notice.NONE, null -> null
 }
+
+/** Text boxes inside ask every keyboard not to learn from them (IME_FLAG_NO_PERSONALIZED_LEARNING), not only Keyward. */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun NoLearning(content: @Composable () -> Unit) = InterceptPlatformTextInput(
+    interceptor = { request, next ->
+        next.startInputMethod(object : PlatformTextInputMethodRequest {
+            override fun createInputConnection(outAttributes: EditorInfo): InputConnection =
+                request.createInputConnection(outAttributes).also {
+                    outAttributes.imeOptions = outAttributes.imeOptions or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+                }
+        })
+    },
+    content = content,
+)

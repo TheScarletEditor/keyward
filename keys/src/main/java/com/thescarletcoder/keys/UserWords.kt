@@ -65,7 +65,11 @@ class UserWords private constructor(context: Context) {
     fun unloadInBackground() = io.execute { store.save(); store.unload() }
 
     /** What Settings shows: the count, every word held (listed or not, for Forget all), and the notice, if any. */
-    data class Status(val count: Int, val notice: WordStore.Notice, val held: Int = count, val canKeep: Boolean = true)
+    data class Status(
+        val count: Int, val notice: WordStore.Notice, val held: Int = count, val canKeep: Boolean = true,
+        /** The list was read: false after a passing error, when the page can't say what's there. */
+        val loaded: Boolean = true,
+    )
 
     /**
      * For Settings: the file and Keystore work on a background thread, the answer on the main thread. The thread
@@ -73,7 +77,7 @@ class UserWords private constructor(context: Context) {
      */
     fun loadAsync(done: (Status) -> Unit) = io.execute {
         store.load()
-        val s = Status(store.count, store.notice, store.size, store.canKeep)
+        val s = status()
         main.post { done(s) }
     }
 
@@ -81,34 +85,37 @@ class UserWords private constructor(context: Context) {
     fun entriesAsync(done: (List<WordStore.Entry>, Status) -> Unit) = io.execute {
         store.load()
         val e = store.entries()
-        val s = Status(store.count, store.notice, store.size, store.canKeep)
+        val s = status()
         main.post { done(e, s) }
     }
 
     /** Remove one word and save at once, so the keyboard's copy and the file agree (Q30). */
-    fun removeAsync(word: String, done: (Status) -> Unit) = io.execute {
-        // Read first: a remove before the file is read would come back with the next load.
+    fun removeAsync(word: String, done: (Boolean, Status) -> Unit) = io.execute {
+        // Read first: a remove before the file is read would come back with the next load. Not read: nothing done.
         store.load()
-        store.remove(word)
-        store.save()
-        val s = Status(store.count, store.notice, store.size, store.canKeep)
-        main.post { done(s) }
+        val ok = store.isLoaded
+        if (ok) { store.remove(word); store.save() }
+        val s = status()
+        main.post { done(ok, s) }
     }
 
     /** Save a word typed on the Your words page. False when it can't be a word or nothing is kept. */
     fun keepAsync(word: String, done: (Boolean, Status) -> Unit) = io.execute {
         store.load()
-        val ok = store.keep(word)
+        // Only into a list that was read: a word kept before that would be dropped at the next screen off.
+        val ok = store.isLoaded && store.keep(word)
         if (ok) store.save()
-        val s = Status(store.count, store.notice, store.size, store.canKeep)
+        val s = status()
         main.post { done(ok, s) }
     }
 
     fun forgetAsync(done: (Boolean, Status) -> Unit) = io.execute {
         val ok = store.clear()
-        val s = Status(store.count, store.notice, store.size, store.canKeep)
+        val s = status()
         main.post { done(ok, s) }
     }
+
+    private fun status() = Status(store.count, store.notice, store.size, store.canKeep, store.isLoaded || !store.canKeep)
 
     private val io = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())

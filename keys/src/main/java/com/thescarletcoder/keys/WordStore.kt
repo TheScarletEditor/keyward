@@ -397,7 +397,9 @@ class WordStore(
             // The seal worked, so the key is fine: a full disk or a failed rename says nothing about it (R6).
             Write.DISK_FAILED -> { saveFailures = 0; return }
             // The phone locked while saving: the key refuses until unlock (Q33), which says nothing about the key.
-            Write.LOCKED -> return
+            // A key that keeps refusing while the phone says it's unlocked is stuck: nothing more is learned this run,
+            // and Settings says so (same rule as reading, A16).
+            Write.LOCKED -> { if (unlocked() && ++lockedFailures >= MAX_LOCKED) synchronized(this) { state = State.REFUSED }; return }
             Write.SEAL_FAILED -> if (!unlocked()) return
         }
         // A key that fails to seal every time is broken. Safe rotation (A-D1, Q2): a new key next to the old one, the
@@ -417,6 +419,7 @@ class WordStore(
      */
     private fun saved(gen: Long) {
         saveFailures = 0
+        lockedFailures = 0
         synchronized(this) { if (generation == gen) dirty = false }
         if (setAsideFiles()?.isEmpty() == true && runCatching { sealer.hasOldKeys() }.getOrDefault(false)) runCatching { sealer.retireOld() }
     }

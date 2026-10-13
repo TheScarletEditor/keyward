@@ -537,6 +537,16 @@ class WordStoreTest {
         assertFalse(t.hasSetAside)
     }
 
+    @Test fun aKeyThatKeepsRefusingSavesWhileUnlockedStopsLearningAndSaysSo() {
+        val s = store(); s.load(); repeat(3) { s.record("zorbex") }; s.save()
+        sealer.lockedNow = true
+        repeat(WordStore.MAX_LOCKED) { s.record("quillet"); s.save() }
+        assertEquals(WordStore.Notice.NOT_LEARNING, s.notice)
+        assertEquals("never rotated for a locked refusal", 0, sealer.rotations)
+        sealer.lockedNow = false
+        val t = store(); t.load(); assertTrue("the file is as it was", t.isKnown("zorbex"))
+    }
+
     /** Letters-only made-up words: a, b, ..., z, ba, bb, ... */
     private fun name(i: Int): String {
         var n = i; val sb = StringBuilder()

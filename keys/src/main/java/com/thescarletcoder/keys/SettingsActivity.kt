@@ -334,7 +334,7 @@ class SettingsActivity : ComponentActivity() {
                 // Settings doubles as the About page: what Keyward does to protect you, then who made it (the owner, Q46 to Q49).
                 Section("Your privacy", p, inter) {
                     Promise(KeyIcons.NO_NETWORK, "No internet access. Keyward can't send anything anywhere, and nothing you type is logged.", p, inter)
-                    Promise(KeyIcons.LOCK, "Your words are encrypted on this phone, with a key kept in Android's protected key store that only works while the phone is unlocked.", p, inter)
+                    Promise(KeyIcons.LOCK, "Your words are encrypted on this device, with a key kept in Android's protected key store that only works while the device is unlocked.", p, inter)
                     Promise(KeyIcons.FINGERPRINT, "Words used only once or twice aren't stored as text, and nothing records the order you typed in.", p, inter)
                     Promise(KeyIcons.HIDDEN, "The keyboard is hidden from screenshots, recordings and screen sharing, and it never learns from passwords or private boxes.", p, inter)
                     Promise(KeyIcons.NONE, "No ads, no tracking, no account.", p, inter)

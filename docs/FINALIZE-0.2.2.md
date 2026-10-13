@@ -119,6 +119,10 @@ Smoke copy (release-optimized, `com.thescarletcoder.keys.smoke`) on scarlet_phon
 - Not checked on screen: TalkBack caps lock (double-tap-and-hold can't be scripted with adb; tried, unreliable). Code-reviewed (R1); optional line in the owner's checklist.
 - Seen, not a Keys bug: on emulators, replacing or force-stopping the selected keyboard's package makes Android fall back to Gboard; on the owner's devices Keys has stayed selected through every install today.
 
+## Slice 6 and the rename (2026-10-12, after /prep resume)
+
+The owner asked to fold in what was waiting and rename to Keyward in this release (KEYS-DECISIONS Q16 to Q26; Q17 supersedes this report's Q1). Slice 6 built with its own slice check (review and audit agents; wording settled in Q23 to Q26). Stages 1 and 2 for slice 6 are those two agents. QA pass 4 in full: 51 unit tests, lintRelease no errors and no new warnings, release/personal/smoke built, release APK label "Keyward", 0.2.2 (5), permissions as 0.2.1, licenses in assets. Emulator (scarlet_phone, smoke copy, light and dark): Keyward header with the publisher line, "Ready. Keyward is on and in use.", KEYWARD on the space bar (preview and keyboard), preview words Your / Keyward / keyboard, licenses list; no crashes. Screenshots `phone-*-keyward-*.png`. Not checked on screen: the TalkBack accent actions (an IME's actions menu can't be scripted with adb); code-reviewed and unit-tested.
+
 ## Ship
 
 | Step | Offered | Choice | Result |

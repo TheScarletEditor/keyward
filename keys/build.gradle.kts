@@ -76,7 +76,8 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
-    // Installs Compose's bundled baseline profiles for sideloaded builds (no Play cloud profiles).
+    // Installs Compose's bundled baseline profiles and ours (src/main/baseline-prof.txt: every class of the app, so the
+    // typing path is compiled ahead of time) for sideloaded builds (no Play cloud profiles).
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     // ExploreByTouchHelper: each key and suggestion as its own item for TalkBack (K4). Apache 2.0, under AndroidX in Credits.
     implementation(libs.androidx.customview)
@@ -84,13 +85,34 @@ dependencies {
 }
 
 // Same rule as Scarlet Command: a keyboard sees everything typed, so it must never have network access.
+// And an allowlist (slice 8): any other permission, component or <queries> a dependency merges in fails the build,
+// so nothing new can reach other apps or be reached by them without the owner seeing it first.
 tasks.matching { it.name.matches(Regex("process[A-Za-z]+MainManifest")) }.configureEach {
     doLast {
         outputs.files.asFileTree.matching { include("**/AndroidManifest.xml") }.forEach { f ->
+            val text = f.readText()
             val banned = listOf("android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE")
-                .filter { f.readText().contains("\"$it\"") }
+                .filter { text.contains("\"$it\"") }
             if (banned.isNotEmpty()) {
                 throw GradleException("Merged manifest ${f.path} contains $banned. A dependency pulled in network access. Stop and flag it to the owner.")
+            }
+            val doc = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }.newDocumentBuilder().parse(f)
+            val ns = "http://schemas.android.com/apk/res/android"
+            fun names(tag: String) = doc.getElementsByTagName(tag).let { l -> (0 until l.length).map { (l.item(it) as org.w3c.dom.Element).getAttributeNS(ns, "name") } }
+            val permissions = names("uses-permission").filterNot {
+                it == "android.permission.VIBRATE" || it.endsWith(".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION")
+            }
+            val allowed = setOf(
+                "com.thescarletcoder.keys.KeysService", "com.thescarletcoder.keys.SettingsActivity",
+                "androidx.startup.InitializationProvider", "androidx.profileinstaller.ProfileInstallReceiver",
+            )
+            val components = listOf("activity", "activity-alias", "service", "receiver", "provider").flatMap(::names).filterNot { it in allowed }
+            val queries = doc.getElementsByTagName("queries").length
+            if (permissions.isNotEmpty() || components.isNotEmpty() || queries > 0) {
+                throw GradleException(
+                    "Merged manifest ${f.path} has what isn't on the allowlist: permissions $permissions, components $components, " +
+                        "queries $queries. Stop and flag it to the owner."
+                )
             }
         }
     }

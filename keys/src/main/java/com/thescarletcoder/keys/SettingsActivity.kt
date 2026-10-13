@@ -93,6 +93,9 @@ import com.thescarletcoder.scarlet.Tunables
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Taps that pass through another app's window on top are ignored, so an overlay can't trick a tap on Forget all
+        // or a switch (slice 8).
+        window.decorView.filterTouchesWhenObscured = true
         if (BuildConfig.DEBUG) StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().penaltyLog().build())
         // Settings, tuning values and "Recent fields" are read on a background thread, then the page is drawn (Q14).
         // Until then the window shows its plain background (light or dark with the system), never a wrong value.

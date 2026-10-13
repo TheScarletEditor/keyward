@@ -56,7 +56,8 @@ class KeysService : InputMethodService(), KeyListener {
     private var fieldKey: Pair<String?, Int>? = null
     private var autocorrectPick: String? = null
     private var pickFor: String? = null
-    private var seq = 0
+    /** Bumped on every keystroke that changes the word; the worker skips jobs for keystrokes already typed past. */
+    @Volatile private var seq = 0
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
     private var lastShiftTap = 0L
 
@@ -215,6 +216,7 @@ class KeysService : InputMethodService(), KeyListener {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        if (::panel.isInitialized) panel.keyboard.stopTouches()
         finishComposing()
         if (learnOn) userWords.saveInBackground()
     }
@@ -482,11 +484,13 @@ class KeysService : InputMethodService(), KeyListener {
         val correctNow = autocorrectOn
         val keptNow = HashSet(kept)
         worker.execute {
+            if (my != seq) return@execute
             val started = System.nanoTime()
             val (boost, learned, known) = wordsFor(d, learnNow, savedNow)
             val cands = d.candidates(typed, boost, learned)
             val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned, cands)?.let { matchCase(typed, it) } else null
-            val ranked = cands.map { matchCase(typed, it.word) }.distinct()
+            // Lazily: only the first few are ever used, so the rest are never converted.
+            val ranked = cands.asSequence().map { matchCase(typed, it.word) }.distinct()
             val isKnown = known(typed)
             // A word Keyward doesn't know, offered as typed with "+ Save" (Q28): saved, it's never corrected again.
             val offerSave = learnNow && !isKnown && Words.isWord(typed) && userWords.canKeep

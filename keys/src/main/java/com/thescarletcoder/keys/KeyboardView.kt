@@ -71,7 +71,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
     var enterWord: String = ""
         set(v) { if (field != v) { field = v; invalidate(); a11y.invalidateRoot() } }
     var keyHeightDp: Int = 64
-        set(v) { field = v; requestLayout() }
+        set(v) { if (field != v) { field = v; requestLayout() } }
     var colors: KeyColors = KeyColors(ScarletTokens.DARK)
         set(v) { field = v; invalidate() }
     var popups: KeyPopups? = null
@@ -514,6 +514,12 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
         if (repeating) { handler.removeCallbacks(repeatRunnable); repeating = false }
         handler.removeCallbacks(longPressRunnable)
         lpPointer = -1; lpIndex = -1
+    }
+
+    /** The keyboard went away mid-touch: no delete repeat or long press may keep running (slice 8). */
+    fun stopTouches() {
+        cancelTimers()
+        closeAccents()
     }
 
     override fun onDetachedFromWindow() {

@@ -14,11 +14,24 @@ class Dictionary private constructor(
     private val freq: IntArray,
     private val offensive: BooleanArray,
 ) {
-    /** Indices by word length (letters only, apostrophes ignored) for the corrector. */
-    private val byLength: Array<IntArray> = run {
-        val buckets = Array(26) { ArrayList<Int>() }
-        lower.forEachIndexed { i, w -> buckets[letters(w).length.coerceAtMost(25)].add(i) }
-        Array(26) { buckets[it].toIntArray() }
+    /**
+     * Indices for the corrector, by word length (letters only, apostrophes ignored) and then by first letter, each in
+     * dictionary order. A misspelling's first letter is the typed one or a neighbour, so only those groups are read
+     * (about a quarter of a length). Built in two counting passes, without boxing.
+     */
+    private val byLengthAndFirst: Array<Map<Char, IntArray>> = run {
+        val key = IntArray(lower.size) // length shl 16 or first letter; -1 for a word with no letters
+        val counts = HashMap<Int, Int>()
+        lower.forEachIndexed { i, w ->
+            val l = letters(w)
+            key[i] = if (l.isEmpty()) -1 else (l.length.coerceAtMost(25) shl 16) or l[0].code
+            if (key[i] >= 0) counts[key[i]] = (counts[key[i]] ?: 0) + 1
+        }
+        val groups = HashMap<Int, IntArray>(counts.size * 2)
+        val filled = HashMap<Int, Int>(counts.size * 2)
+        counts.forEach { (k, n) -> groups[k] = IntArray(n); filled[k] = 0 }
+        key.forEachIndexed { i, k -> if (k >= 0) { val at = filled.getValue(k); groups.getValue(k)[at] = i; filled[k] = at + 1 } }
+        Array(26) { len -> groups.filterKeys { it ushr 16 == len }.mapKeys { (k, _) -> (k and 0xFFFF).toChar() } }
     }
 
     val size get() = lower.size
@@ -70,14 +83,17 @@ class Dictionary private constructor(
         val tl = letters(t)
         if (tl.length >= 2) {
             val maxD = if (tl.length <= 4) 1.0f else 2.0f
+            val firsts = firstLetters(tl[0])
             for (len in (tl.length - 1)..(tl.length + 1)) {
                 if (len !in 1..25) continue
-                for (idx in byLength[len]) {
-                    val w = letters(lower[idx])
-                    if (w.isEmpty() || !firstLetterOk(tl[0], w[0])) continue
-                    var d = distance(tl, w, maxD)
-                    if (d == 0f && lower[idx] != t) d = 0.1f // only an apostrophe differs: "dont" -> "don't"
-                    if (d <= maxD) offer(idx, d, false)
+                val groups = byLengthAndFirst[len]
+                for (first in firsts) {
+                    for (idx in groups[first] ?: continue) {
+                        val w = letters(lower[idx])
+                        var d = distance(tl, w, maxD)
+                        if (d == 0f && lower[idx] != t) d = 0.1f // only an apostrophe differs: "dont" -> "don't"
+                        if (d <= maxD) offer(idx, d, false)
+                    }
                 }
             }
         }
@@ -181,24 +197,34 @@ class Dictionary private constructor(
 
         private fun letters(w: String) = if (w.indexOf('\'') < 0) w else w.replace("'", "")
 
-        // QWERTY neighbours: a slip onto an adjacent key is a cheap mistake.
+        // QWERTY neighbours: a slip onto an adjacent key is a cheap mistake. Rows and columns by letter, -1 for others.
         private val rows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
-        private val pos: Map<Char, Pair<Int, Int>> = buildMap {
-            rows.forEachIndexed { r, s -> s.forEachIndexed { c, ch -> put(ch, r to c) } }
-        }
+        private val keyRow = IntArray(26) { -1 }
+        private val keyCol = IntArray(26) { -1 }
+        init { rows.forEachIndexed { r, s -> s.forEachIndexed { c, ch -> keyRow[ch - 'a'] = r; keyCol[ch - 'a'] = c } } }
         private fun adjacent(a: Char, b: Char): Boolean {
-            val p = pos[a] ?: return false; val q = pos[b] ?: return false
-            return abs(p.first - q.first) <= 1 && abs(p.second - q.second) <= 1
+            if (a !in 'a'..'z' || b !in 'a'..'z') return false
+            val i = a - 'a'; val j = b - 'a'
+            return abs(keyRow[i] - keyRow[j]) <= 1 && abs(keyCol[i] - keyCol[j]) <= 1
         }
-        private fun firstLetterOk(a: Char, b: Char) = a == b || adjacent(a, b)
+
+        /** First letters a misspelling of a word starting with [a] may have: [a] itself and its neighbours. */
+        private val neighbours: Array<CharArray> = Array(26) { i -> ('a'..'z').filter { it - 'a' == i || adjacent('a' + i, it) }.toCharArray() }
+        private fun firstLetters(a: Char): CharArray = if (a in 'a'..'z') neighbours[a - 'a'] else charArrayOf(a)
+
+        /** Rows for [distance], one set per thread (the keyboard calls it from its worker and the main thread). */
+        private val rowsFor = ThreadLocal.withInitial { Array(3) { FloatArray(64) } }
 
         /** Weighted Damerau-Levenshtein (keyboard- and double-letter-aware) with an early exit once [max] is exceeded. */
         fun distance(a: String, b: String, max: Float): Float {
             val n = a.length; val m = b.length
             if (abs(n - m) > max) return max + 1
-            var prev2 = FloatArray(m + 1)
-            var prev = FloatArray(m + 1) { it.toFloat() }
-            var cur = FloatArray(m + 1)
+            val r = rowsFor.get()
+            if (r[0].size < m + 1) for (k in 0 until 3) r[k] = FloatArray(m + 1)
+            // Reused rows: only [prev] needs its starting values; every other cell is written before it's read.
+            var prev2 = r[0]
+            var prev = r[1].also { for (j in 0..m) it[j] = j.toFloat() }
+            var cur = r[2]
             for (i in 1..n) {
                 cur[0] = i.toFloat()
                 var rowMin = cur[0]

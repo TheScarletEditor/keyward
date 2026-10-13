@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- NO INTERNET. A keyboard sees everything typed. The build fails if any dependency merges network access. -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -25,6 +26,15 @@
             </intent-filter>
             <meta-data android:name="android.view.im" android:resource="@xml/method" />
         </service>
+
+        <!-- Not needed (no emoji fonts are downloaded or used) and it ran at every start, keyboard included (slice 8). -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data android:name="androidx.emoji2.text.EmojiCompatInitializer" tools:node="remove" />
+        </provider>
 
         <activity
             android:name=".SettingsActivity"

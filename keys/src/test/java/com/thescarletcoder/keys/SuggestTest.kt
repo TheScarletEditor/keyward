@@ -53,11 +53,11 @@ class SuggestTest {
         assertTrue(c.toString(), "MacBook" in c)
     }
 
-    @Test fun capitalMidSentenceIsAName() {
-        // A typo-looking word the user capitalised mid-sentence is left alone; the same word lowercase is fixed.
+    @Test fun aCapitalIsCorrectedUnlessSaved() {
+        // Q28: a capital alone doesn't protect a word; a saved (known) word is never corrected.
         assertEquals("the", fix("teh"))
-        assertNull(dict.autocorrect("Teh", { dict.isKnown(it) }, { 0 }, emptyList(), name = true))
-        assertEquals("I'm", dict.autocorrect("Im", { dict.isKnown(it) }, { 0 }, emptyList(), name = true))
+        assertEquals("the", dict.autocorrect("Teh", { dict.isKnown(it) }, { 0 }, emptyList()))
+        assertNull(dict.autocorrect("Teh", { dict.isKnown(it) || it == "teh" }, { 0 }, listOf("teh")))
     }
 
     @Test fun completionsOffered() {

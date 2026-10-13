@@ -24,11 +24,11 @@ import com.thescarletcoder.scarlet.Tunables
 
 /**
  * Three suggestion slots above the keys. Always the same height, so the keyboard never jumps between fields.
- * [highlight] marks the word Enter/space would autocorrect to. In a private field with nothing to show, a lock
- * and "Private field. Nothing learned."
+ * [highlight] marks the word Enter/space would autocorrect to; [saveSlot] is the typed word with "+ Save" (Q28).
+ * In a private field with nothing to show, a lock and "Private field. Nothing learned."
  */
 @SuppressLint("ViewConstructor")
-class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : View(context) {
+class SuggestionStrip(context: Context, private val onPick: (String, Boolean) -> Unit) : View(context) {
     var colors: KeyColors = KeyColors(ScarletTokens.DARK)
         set(v) { field = v; invalidate() }
     var privateField = false
@@ -41,6 +41,7 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
     private val slotStart = LongArray(3)
     private var highlight = -1
     private var replacing = false
+    private var saveSlot = -1
     private var pressedSlot = -1
 
     private val inter = ResourcesCompat.getFont(context, R.font.inter_regular) ?: Typeface.DEFAULT
@@ -55,6 +56,15 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
     private val note = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = inter; textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 13f, resources.displayMetrics)
     }
+    private val chip = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = interMedium; textAlign = Paint.Align.CENTER
+        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11f, resources.displayMetrics)
+    }
+    private val chipLine = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1 * density }
+    private val chipPad = 7 * density
+    private val chipGap = 6 * density
+    private val chipW get() = chip.measureText(SAVE) + 2 * chipPad
+
     private val lockPx = 16 * density
     private val lockBody = KeyIcons.roundRect(5.5f, 10.5f, 13f, 9.5f, 2f, lockPx)
     private val lockShackle = KeyIcons.path(KeyIcons.LOCK_SHACKLE, lockPx)
@@ -63,8 +73,9 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
     }
 
     /** [replaces]: the highlighted word is a fix space will swap in (not just the word as typed), for TalkBack (Q25). */
-    fun show(list: List<String>, highlightIndex: Int, replaces: Boolean = false) {
+    fun show(list: List<String>, highlightIndex: Int, replaces: Boolean = false, saveSlot: Int = -1) {
         replacing = replaces
+        this.saveSlot = if (list.getOrNull(saveSlot) != null) saveSlot else -1
         val now = SystemClock.uptimeMillis()
         for (i in 0 until 3) {
             val w = list.getOrNull(i)
@@ -93,7 +104,7 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
             bounds.set(id * slotW, 0, (id + 1) * slotW, height)
             node.setBoundsInParent(bounds)
             if (w == null) { node.contentDescription = ""; return }
-            node.contentDescription = KeyLabels.suggestion(w, replaces = replacing && id == highlight)
+            node.contentDescription = KeyLabels.suggestion(w, replaces = replacing && id == highlight, saves = id == saveSlot)
             node.className = "android.widget.Button"
             node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
         }
@@ -101,7 +112,7 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
         override fun onPerformActionForVirtualView(id: Int, action: Int, args: Bundle?): Boolean {
             val w = words.getOrNull(id) ?: return false
             if (action != AccessibilityNodeInfoCompat.ACTION_CLICK) return false
-            onPick(w); return true
+            onPick(w, id == saveSlot); return true
         }
     }
 
@@ -124,7 +135,8 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
             val w = words[i]
             shown[i] = if (w == null || slotW <= 0f) w else {
                 paint.typeface = if (i == highlight) interMedium else inter
-                TextUtils.ellipsize(w, paint, slotW - 24 * density, TextUtils.TruncateAt.END).toString()
+                val room = slotW - 24 * density - (if (i == saveSlot) chipW + chipGap else 0f)
+                TextUtils.ellipsize(w, paint, room.coerceAtLeast(0f), TextUtils.TruncateAt.END).toString()
             }
         }
     }
@@ -160,8 +172,22 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
             val t = if (fade <= 0f) 1f else (now - slotStart[i]) / fade
             if (t < 1f) animating = true
             paint.color = if (i == highlight) c.text else c.soft
-            paint.alpha = (Motion.easeOut(t) * 255).toInt()
-            canvas.drawText(w, cx, cy - (paint.descent() + paint.ascent()) / 2, paint)
+            val alpha = (Motion.easeOut(t) * 255).toInt()
+            paint.alpha = alpha
+            if (i == saveSlot) {
+                // The word, then a small teal "+ Save" pill, centred together in the slot.
+                paint.color = c.text; paint.alpha = alpha
+                val wordW = paint.measureText(w)
+                val left = cx - (wordW + chipGap + chipW) / 2
+                canvas.drawText(w, left + wordW / 2, cy - (paint.descent() + paint.ascent()) / 2, paint)
+                val cl = left + wordW + chipGap
+                val ch = 11 * density
+                pill.set(cl, cy - ch, cl + chipW, cy + ch)
+                chipLine.color = c.save; chipLine.alpha = alpha
+                canvas.drawRoundRect(pill, ch, ch, chipLine)
+                chip.color = c.save; chip.alpha = alpha
+                canvas.drawText(SAVE, pill.centerX(), cy - (chip.descent() + chip.ascent()) / 2, chip)
+            } else canvas.drawText(w, cx, cy - (paint.descent() + paint.ascent()) / 2, paint)
             // Dividers only between two slots that both have a word.
             if (i > 0 && shown[i - 1] != null) {
                 divider.color = c.divider
@@ -192,7 +218,7 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> { pressedSlot = if (words[slot] != null) slot else -1; invalidate() }
             MotionEvent.ACTION_UP -> {
-                if (slot == pressedSlot) words[slot]?.let(onPick)
+                if (slot == pressedSlot) words[slot]?.let { onPick(it, slot == saveSlot) }
                 pressedSlot = -1; invalidate()
             }
             MotionEvent.ACTION_CANCEL -> { pressedSlot = -1; invalidate() }
@@ -200,5 +226,8 @@ class SuggestionStrip(context: Context, private val onPick: (String) -> Unit) : 
         return true
     }
 
-    private companion object { const val PRIVATE = "Private field. Nothing learned." }
+    private companion object {
+        const val PRIVATE = "Private field. Nothing learned."
+        const val SAVE = "+ Save"
+    }
 }

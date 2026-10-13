@@ -7,8 +7,11 @@ import java.io.File
  * words 1 to 7). Plain Kotlin, so the JVM tests run it with a fake [Sealer]; [UserWords] adds the Android Keystore.
  *
  * Files in [dir]: `words.enc` (the list), `words.tmp` (a save in progress), `words.unreadable` (a list that couldn't be
- * read, set aside and never overwritten, Q2; a second one becomes `words.unreadable-2`, and so on). Inside the encryption: one format byte, then "word<TAB>count" lines.
- * Files from 0.2.1 have no format byte (format 0).
+ * read, set aside and never overwritten, Q2; a second one becomes `words.unreadable-2`, and so on). Inside the encryption: one format byte, then "word<TAB>count" lines,
+ * with "<TAB>s" after a word the user saved (format 2). Files from 0.2.1 have no format byte (format 0); format 1 has no saved mark.
+ *
+ * Two kinds of word (Q29): learned, used [LEARNED] times or more; saved by the user ("+ Save", taking a fix back, or
+ * the Your words page), kept until removed and never trimmed. Words used less are kept quietly, not counted or listed.
  */
 class WordStore(
     dirProvider: () -> File,
@@ -60,6 +63,8 @@ class WordStore(
 
     /** In the order words were last used (oldest first), so trimming drops the oldest of the least used. */
     private val counts = LinkedHashMap<String, Int>()
+    /** Words the user saved: always known, never trimmed (Q29). Every one is also in [counts]. */
+    private val saved = HashSet<String>()
     private var dirty = false
     /** Bumped on every change to [counts]: a save clears [dirty] only if nothing changed while it was writing. */
     private var generation = 0L
@@ -78,21 +83,39 @@ class WordStore(
     private fun setAsideFiles() =
         dir.listFiles { f -> f.name == "words.unreadable" || f.name.startsWith("words.unreadable-") }?.toList()
 
-    /** A word counts as "known" once used twice. */
-    @Synchronized fun isKnown(word: String) = (counts[word.lowercase()] ?: 0) >= 2
+    private fun listed(w: String, n: Int) = n >= LEARNED || w in saved
 
-    @Synchronized fun boost(word: String) = ((counts[word.lowercase()] ?: 0) * 8).coerceAtMost(80)
+    /** A word counts as "known" once used [LEARNED] times, or saved. */
+    @Synchronized fun isKnown(word: String) = word.lowercase().let { w -> listed(w, counts[w] ?: 0) }
+
+    @Synchronized fun isSaved(word: String) = word.lowercase() in saved
+
+    @Synchronized fun boost(word: String): Int {
+        val w = word.lowercase()
+        return if (w in saved) MAX_BOOST else ((counts[w] ?: 0) * 8).coerceAtMost(MAX_BOOST)
+    }
 
     private var learnedCache: List<String> = emptyList()
     private var learnedAt = -1L
 
-    /** Learned words (used twice or more), for suggestions. Rebuilt only when the list changed, not on every key. */
+    /** Learned and saved words, for suggestions. Rebuilt only when the list changed, not on every key. */
     val learned: Collection<String> @Synchronized get() {
-        if (learnedAt != generation) { learnedCache = counts.filterValues { it >= 2 }.keys.toList(); learnedAt = generation }
+        if (learnedAt != generation) { learnedCache = counts.filter { (w, n) -> listed(w, n) }.keys.toList(); learnedAt = generation }
         return learnedCache
     }
 
-    val count: Int @Synchronized get() = counts.size
+    /** Learned plus saved: what Settings counts (words used once or twice aren't counted, Q29). */
+    val count: Int get() = learned.size
+
+    /** Every word held, listed or not (for tests of the file rules). */
+    internal val size: Int @Synchronized get() = counts.size
+
+    /** One row of the Your words page. */
+    data class Entry(val word: String, val uses: Int, val saved: Boolean)
+
+    /** Learned and saved words, alphabetically, for the Your words page. */
+    @Synchronized fun entries(): List<Entry> =
+        counts.filter { (w, n) -> listed(w, n) }.map { (w, n) -> Entry(w, n, w in saved) }.sortedBy { it.word }
 
     /** A list that couldn't be read was set aside (Settings says so, Q2). Touches the disk: not on the main thread. */
     val hasSetAside: Boolean get() = !setAsideFiles().isNullOrEmpty()
@@ -117,6 +140,29 @@ class WordStore(
         if (!learnable(w)) return
         // Moved to the end: most recently used. The list may pass the cap until the next save trims it (off the typing path).
         counts[w] = ((counts.remove(w) ?: 0) + 1).coerceAtMost(MAX_COUNT)
+        generation++
+        dirty = true
+    }
+
+    /** Save a word: known from now on and kept until removed (Q28, Q29). False when it can't be a word or nothing is kept. */
+    @Synchronized
+    fun keep(word: String): Boolean {
+        if (refused) return false
+        val w = word.lowercase()
+        if (!learnable(w)) return false
+        counts[w] = (counts.remove(w) ?: 0).coerceAtLeast(1)
+        saved += w
+        generation++
+        dirty = true
+        return true
+    }
+
+    /** Take a word off the list, saved or learned; it's learned again only by being used [LEARNED] more times. */
+    @Synchronized
+    fun remove(word: String) {
+        val w = word.lowercase()
+        val had = counts.remove(w) != null
+        if (!saved.remove(w) && !had) return
         generation++
         dirty = true
     }
@@ -148,19 +194,26 @@ class WordStore(
         val format = formatOf(body)
         if (format < 0) { setAsideFile(); return }
         if (format > FORMAT) {
-            synchronized(this) { state = State.REFUSED_NEWER; counts.clear(); generation++; dirty = false }
+            synchronized(this) { state = State.REFUSED_NEWER; counts.clear(); saved.clear(); generation++; dirty = false }
             return
         }
         val skip = if (format == 0) 0 else 1
         val text = String(body, skip, body.size - skip, Charsets.UTF_8)
         val fromFile = LinkedHashMap<String, Int>()
+        val savedInFile = HashSet<String>()
         text.lineSequence().forEach { line ->
-            val i = line.lastIndexOf('\t')
-            val n = if (i > 0) line.substring(i + 1).toIntOrNull() else null
+            // Format 2 may add "<TAB>s" after the count; before that the count was the last field.
+            val mark = format >= 2 && line.endsWith("\ts")
+            val l = if (mark) line.substring(0, line.length - 2) else line
+            val i = l.lastIndexOf('\t')
+            val n = if (i > 0) l.substring(i + 1).toIntOrNull() else null
             // The same rule as typing (A-D2): a word an older or newer build wrote with stray characters (a 0.2.1 build
             // reading this format keeps the format byte in the first word) is cleaned or skipped, never suggested.
-            val w = if (i > 0) line.substring(0, i).filter { it >= ' ' }.lowercase() else ""
-            if (n != null && n > 0 && learnable(w)) fromFile[w] = ((fromFile[w] ?: 0) + n).coerceAtMost(MAX_COUNT)
+            val w = if (i > 0) l.substring(0, i).filter { it >= ' ' }.lowercase() else ""
+            if (n != null && n > 0 && learnable(w)) {
+                fromFile[w] = ((fromFile[w] ?: 0) + n).coerceAtMost(MAX_COUNT)
+                if (mark) savedInFile += w
+            }
             // a bad count line is skipped, never read as 0 (3)
         }
         synchronized(this) {
@@ -169,6 +222,7 @@ class WordStore(
             counts.clear()
             counts.putAll(fromFile)
             typed.forEach { (w, n) -> counts[w] = ((counts.remove(w) ?: 0) + n).coerceAtMost(MAX_COUNT) }
+            saved += savedInFile
             trim()
             generation++
             state = State.LOADED
@@ -184,15 +238,20 @@ class WordStore(
         // Only a copy under the memory lock; the text and bytes are built after it's released.
         val words: Array<String>
         val uses: IntArray
+        val marks: BooleanArray
         val gen: Long
         synchronized(this) {
             if (!dirty || state != State.LOADED) return
             trim()
             words = counts.keys.toTypedArray(); uses = counts.values.toIntArray(); gen = generation
+            marks = BooleanArray(words.size) { words[it] in saved }
         }
         val body = java.io.ByteArrayOutputStream(words.size * 12 + 1).apply {
             write(FORMAT)
-            words.forEachIndexed { i, w -> if (i > 0) write('\n'.code); write("$w\t${uses[i]}".toByteArray(Charsets.UTF_8)) }
+            words.forEachIndexed { i, w ->
+                if (i > 0) write('\n'.code)
+                write((if (marks[i]) "$w\t${uses[i]}\ts" else "$w\t${uses[i]}").toByteArray(Charsets.UTF_8))
+            }
         }.toByteArray()
         when (write(body)) {
             Write.OK -> { saved(gen); return }
@@ -243,6 +302,7 @@ class WordStore(
         synchronized(this) {
             if (!gone) { if (state == State.LOADED) dirty = true; return false }
             counts.clear()
+            saved.clear()
             generation++
             dirty = false
             state = State.LOADED
@@ -251,7 +311,7 @@ class WordStore(
         true
     }
 
-    private fun learnable(w: String) = w.length in 2..MAX_LETTERS && w.all(Words::isWordChar)
+    private fun learnable(w: String) = Words.isWord(w)
 
     private fun setAsideFile() {
         // Never overwrite a list set aside earlier: the next free name.
@@ -263,24 +323,27 @@ class WordStore(
     }
 
     /**
-     * Down to [CAP] words: the least used go first, and among those the longest unused (6). Usually one or a few over,
-     * so a pass for the lowest count and a removal in last-used order, no sort.
+     * Down to [CAP] words: the least used go first, and among those the longest unused (6). Saved words never go (Q29),
+     * so the list stays over the cap only when nearly all of it is saved. Usually one or a few over, so a pass for the
+     * lowest count and a removal in last-used order, no sort.
      */
     private fun trim() {
         while (counts.size > CAP) {
-            val low = counts.values.min()
+            val low = counts.entries.filter { it.key !in saved }.minOfOrNull { it.value } ?: return
             val iter = counts.entries.iterator()
-            while (counts.size > CAP && iter.hasNext()) if (iter.next().value == low) iter.remove()
+            while (counts.size > CAP && iter.hasNext()) iter.next().let { if (it.value == low && it.key !in saved) iter.remove() }
             generation++ // the cached learned list rebuilds
         }
     }
 
     companion object {
-        /** The format this build writes. 0 was 0.2.1's (no format byte). */
-        const val FORMAT = 1
+        /** The format this build writes. 0 was 0.2.1's (no format byte); 1 had no saved mark. */
+        const val FORMAT = 2
+        /** Uses before a word is learned (Q29; was 2). */
+        const val LEARNED = 3
+        private const val MAX_BOOST = 80
         /** Most words kept; the least used go first (6). */
         const val CAP = 5000
-        const val MAX_LETTERS = 30
         /** A use count never goes past this (no overflow from a crafted file or years of use, R8). */
         const val MAX_COUNT = 1_000_000
         /** A list file larger than this isn't ours (5,000 words is about 200 KB): set aside unread (R7). */

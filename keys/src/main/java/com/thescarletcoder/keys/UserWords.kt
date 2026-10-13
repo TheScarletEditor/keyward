@@ -32,11 +32,14 @@ class UserWords private constructor(context: Context) {
     )
 
     fun isKnown(word: String) = store.isKnown(word)
+    fun isSaved(word: String) = store.isSaved(word)
     fun boost(word: String) = store.boost(word)
 
-    /** Learned words (used twice or more), for suggestions. */
+    /** Learned and saved words, for suggestions. */
     val learned: Collection<String> get() = store.learned
     fun record(word: String) = store.record(word)
+    /** Save a word the user chose to keep (Q28). */
+    fun keep(word: String) = store.keep(word)
 
     /**
      * Read and save on the store's own thread (process-long, never the screen's or the keyboard's suggestion thread),
@@ -56,6 +59,31 @@ class UserWords private constructor(context: Context) {
         store.load()
         val s = Status(store.count, store.notice)
         main.post { done(s) }
+    }
+
+    /** For the Your words page: the list, read off the main thread. */
+    fun entriesAsync(done: (List<WordStore.Entry>, Status) -> Unit) = io.execute {
+        store.load()
+        val e = store.entries()
+        val s = Status(store.count, store.notice)
+        main.post { done(e, s) }
+    }
+
+    /** Remove one word and save at once, so the keyboard's copy and the file agree (Q30). */
+    fun removeAsync(word: String, done: (Status) -> Unit) = io.execute {
+        store.remove(word)
+        store.save()
+        val s = Status(store.count, store.notice)
+        main.post { done(s) }
+    }
+
+    /** Save a word typed on the Your words page. False when it can't be a word or nothing is kept. */
+    fun keepAsync(word: String, done: (Boolean, Status) -> Unit) = io.execute {
+        store.load()
+        val ok = store.keep(word)
+        if (ok) store.save()
+        val s = Status(store.count, store.notice)
+        main.post { done(ok, s) }
     }
 
     fun forgetAsync(done: (Boolean, Status) -> Unit) = io.execute {

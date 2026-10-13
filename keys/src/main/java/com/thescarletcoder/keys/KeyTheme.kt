@@ -5,7 +5,7 @@ import android.graphics.Path
 import androidx.core.graphics.PathParser
 import com.thescarletcoder.scarlet.ScarletPalette
 
-/** Keyboard colours for one theme (KEYS-POLISH-SPEC section 1). Scarlet stays soft and only on Enter. */
+/** Keyboard colours for one theme (KEYS-POLISH-SPEC section 1). Enter is teal; scarlet is kept for delete actions in Settings (Q30). */
 class KeyColors(p: ScarletPalette) {
     val dark = p.dark
     val bg = if (p.dark) 0xFF171614.toInt() else 0xFFE9E6E0.toInt()
@@ -18,8 +18,12 @@ class KeyColors(p: ScarletPalette) {
     val text = p.text
     val soft = p.soft
     val faint = p.faint
-    val enter = p.scarletWash
-    val enterEdge = p.scarletEdge
+    val enter = p.teal
+    val enterPressed = if (p.dark) 0xFF4C7F72.toInt() else 0xFF365E54.toInt()
+    /** The Enter icon: the page colour on teal (4.9:1 light, 5.6:1 dark). */
+    val enterText = p.bg
+    /** "+ Save" on the strip: teal, darkened in light so the small text reads on the keyboard (about 5:1). */
+    val save = if (p.dark) p.teal else 0xFF3A6A5E.toInt()
     val capsLock = p.tealWash
     val capsLockEdge = p.tealEdge
     val lip = if (p.dark) 0x99000000.toInt() else 0x2E171614

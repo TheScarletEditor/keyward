@@ -15,7 +15,7 @@ import android.widget.LinearLayout
  * The Settings preview uses the same panel.
  */
 @SuppressLint("ViewConstructor")
-class KeyboardPanel(context: Context, listener: KeyListener, onPick: (String) -> Unit) : FrameLayout(context) {
+class KeyboardPanel(context: Context, listener: KeyListener, onPick: (String, Boolean) -> Unit) : FrameLayout(context) {
     val keyboard = KeyboardView(context, listener)
     val strip = SuggestionStrip(context, onPick)
     val overlay = KeyOverlay(context)

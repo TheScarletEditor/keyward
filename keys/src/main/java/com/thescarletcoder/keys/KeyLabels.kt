@@ -49,7 +49,11 @@ object KeyLabels {
     }
 
     /** For a suggestion slot; [replaces]: the highlighted word, the one space will put in (KB-6). */
-    fun suggestion(word: String, replaces: Boolean = false) = if (replaces) "Suggestion: $word, will replace" else "Suggestion: $word"
+    fun suggestion(word: String, replaces: Boolean = false, saves: Boolean = false) = when {
+        saves -> "Save $word to your words"
+        replaces -> "Suggestion: $word, will replace"
+        else -> "Suggestion: $word"
+    }
 
     /** An accent as typed and as TalkBack's action name for it: the character itself, capital with Shift on (KB-5). */
     fun accent(ch: Char, shift: Shift): String = if (shift == Shift.OFF) ch.toString() else ch.uppercaseChar().toString()

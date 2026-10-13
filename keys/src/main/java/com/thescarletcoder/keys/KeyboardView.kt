@@ -278,12 +278,12 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
             val letterLike = k.type == KeyType.CHAR || k.type == KeyType.SPACE
             val base: Int; val edge: Int
             when {
-                k.type == KeyType.ENTER -> { base = c.enter; edge = c.enterEdge }
+                k.type == KeyType.ENTER -> { base = c.enter; edge = 0 }
                 k.type == KeyType.SHIFT && shift == Shift.LOCKED -> { base = c.capsLock; edge = c.capsLockEdge }
                 letterLike -> { base = c.key; edge = c.edge }
                 else -> { base = c.function; edge = c.edge }
             }
-            val pressedColor = if (letterLike) c.pressedKey else c.pressedFunction
+            val pressedColor = when { k.type == KeyType.ENTER -> c.enterPressed; letterLike -> c.pressedKey; else -> c.pressedFunction }
             val color = when {
                 downCount[i] > 0 -> pressedColor
                 snap <= 0f -> base
@@ -325,11 +325,11 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
             }
             KeyType.DELETE -> icon(canvas, rect, c.text, deletePath, deleteX, filled = false)
             KeyType.ENTER -> when (enterKind) {
-                EnterKind.SEND -> icon(canvas, rect, c.text, sendPath, sendFold, filled = false)
-                EnterKind.SEARCH -> icon(canvas, rect, c.text, searchCircle, searchHandle, filled = false)
-                EnterKind.GO -> icon(canvas, rect, c.text, goPath, null, filled = false)
-                EnterKind.RETURN -> icon(canvas, rect, c.text, returnPath, returnHead, filled = false)
-                EnterKind.WORD -> label(canvas, rect, enterWord, word = true, c.text)
+                EnterKind.SEND -> icon(canvas, rect, c.enterText, sendPath, sendFold, filled = false)
+                EnterKind.SEARCH -> icon(canvas, rect, c.enterText, searchCircle, searchHandle, filled = false)
+                EnterKind.GO -> icon(canvas, rect, c.enterText, goPath, null, filled = false)
+                EnterKind.RETURN -> icon(canvas, rect, c.enterText, returnPath, returnHead, filled = false)
+                EnterKind.WORD -> label(canvas, rect, enterWord, word = true, c.enterText)
             }
             KeyType.SPACE -> {
                 val a = wordmarkAlpha(now)

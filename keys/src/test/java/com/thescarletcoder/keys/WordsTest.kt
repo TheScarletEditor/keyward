@@ -17,15 +17,4 @@ class WordsTest {
         assertNull(Words.wordAtEnd("abcd", 4))                     // could be longer than what was read
         assertEquals("bc", Words.wordAtEnd("a bc", 4))
     }
-
-    @Test fun sentenceStarts() {
-        listOf("", "Done. ", "Done.", "Really? ", "Wow! ", "line\n", "He left.\" ", "Done. (", "Done. '", "Done.\u201D ").forEach {
-            assertTrue("[$it]", Words.startsSentence(it))
-        }
-        assertTrue(Words.startsSentence(null))
-    }
-
-    @Test fun midSentence() {
-        listOf("I like ", "I like", "said \"", "my (", "one, ").forEach { assertFalse("[$it]", Words.startsSentence(it)) }
-    }
 }

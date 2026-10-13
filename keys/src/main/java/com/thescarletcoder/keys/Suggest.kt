@@ -93,12 +93,11 @@ class Dictionary private constructor(
      * Correction to apply when the word ends, or null to leave it alone. Gentle on purpose.
      * [ranked]: this word's [candidates] if the caller already has them (the keyboard does, for the strip), so the
      * dictionary is searched once per keystroke, not twice.
-     * [name]: the user capitalised this word themselves mid-sentence, so it's taken as a name and left alone
-     * (the "I" words still get fixed).
+     * A capitalised word is corrected like any other unless it's known or saved (Q28).
      */
     fun autocorrect(
         typed: String, known: (String) -> Boolean, userBoost: (String) -> Int, userWords: Collection<String>,
-        ranked: List<Candidate>? = null, name: Boolean = false,
+        ranked: List<Candidate>? = null,
     ): String? {
         val t = typed.lowercase()
         // The word "I" and its contractions: always capital, before the dictionary (which knows "i" as a word, and
@@ -111,7 +110,7 @@ class Dictionary private constructor(
             val takenBack = fixesToI(t) && userWords.any { it.equals(t, ignoreCase = true) }
             return if (typed == fixed || allCaps || takenBack) null else fixed
         }
-        if (name || t.length < 2 || known(t)) return null
+        if (t.length < 2 || known(t)) return null
         if (t.any { !it.isLetter() && it != '\'' }) return null
         val best = (ranked ?: candidates(t, userBoost, userWords)).firstOrNull { it.distance > 0f } ?: return null
         val limit = if (letters(t).length <= 4) 1.0f else 2.0f

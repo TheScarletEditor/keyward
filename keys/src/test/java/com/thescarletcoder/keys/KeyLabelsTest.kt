@@ -43,6 +43,7 @@ class KeyLabelsTest {
     @Test fun theHighlightedSuggestionSaysItWillReplace() {
         assertEquals("Suggestion: hello", KeyLabels.suggestion("hello"))
         assertEquals("Suggestion: hello, will replace", KeyLabels.suggestion("hello", replaces = true))
+        assertEquals("Save Zorvex to your words", KeyLabels.suggestion("Zorvex", saves = true))
     }
 
     @Test fun iconKeysSayWhatTheyDo() {

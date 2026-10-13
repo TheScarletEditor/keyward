@@ -139,9 +139,15 @@ class SettingsActivity : ComponentActivity() {
             var forgetOk by rememberSaveable { mutableStateOf<Boolean?>(null) }
             // Saved across rotation and theme changes, so the page that's open stays open.
             var licenses by rememberSaveable { mutableStateOf(false) }
+            var wordsPage by rememberSaveable { mutableStateOf(false) }
+            val forget = {
+                forgetting = true; forgetOk = null
+                words.forgetAsync { ok, s -> forgetting = false; status = s; forgetOk = ok }
+            }
             var readingIndex by rememberSaveable { mutableIntStateOf(-1) }
             val reading = Licenses.parts.getOrNull(readingIndex)
             BackHandler(enabled = tuning) { tuning = false }
+            BackHandler(enabled = wordsPage) { wordsPage = false }
             BackHandler(enabled = licenses && reading == null) { licenses = false }
             BackHandler(enabled = reading != null) { readingIndex = -1 }
             val scroll = rememberScrollState()
@@ -149,7 +155,7 @@ class SettingsActivity : ComponentActivity() {
             var mainScroll by rememberSaveable { mutableIntStateOf(0) }
             // Moving to another page opens it at its top, and back to the main page where it was. Only on a real move:
             // after a rotation the scroll state restores itself.
-            val page = when { tuning -> "tuning"; reading != null -> "license $readingIndex"; licenses -> "licenses"; else -> "main" }
+            val page = when { tuning -> "tuning"; wordsPage -> "words"; reading != null -> "license $readingIndex"; licenses -> "licenses"; else -> "main" }
             var shownPage by rememberSaveable { mutableStateOf(page) }
             LaunchedEffect(page) {
                 if (page == shownPage) return@LaunchedEffect
@@ -172,6 +178,15 @@ class SettingsActivity : ComponentActivity() {
                         Pill("Back", false, p, inter) { if (reading != null) readingIndex = -1 else licenses = false }
                     }
                     if (reading != null) LicenseText(reading, p, inter) else LicensesList(p, inter) { readingIndex = Licenses.parts.indexOf(it) }
+                    return@Column
+                }
+                if (wordsPage) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Your words", color = Color(p.text), fontSize = 30.sp, fontFamily = fraunces,
+                            modifier = Modifier.weight(1f).semantics { heading() })
+                        Pill("Back", false, p, inter) { wordsPage = false }
+                    }
+                    WordsPage(words, status, { status = it }, forgetting, forgetOk, forget, p, inter)
                     return@Column
                 }
                 if (tuning) {
@@ -214,28 +229,11 @@ class SettingsActivity : ComponentActivity() {
                         "Remembers words you use so it stops correcting them. Single words only, encrypted on this device. Never from password fields or fields an app marks as private, like incognito tabs.",
                         prefs.learn, p, inter,
                     ) { prefs.learn = it }
-                    // The list's state, if there's anything to say (Q2, Q12). Forget clears every case and starts a new list.
-                    val notice = status?.notice ?: WordStore.Notice.NONE
-                    val count = status?.count ?: 0
-                    val noticeText = when (notice) {
-                        WordStore.Notice.SET_ASIDE -> "Your learned words couldn't be read on this device, so it started a new list."
-                        WordStore.Notice.NEWER -> "Your learned words were saved by a newer version of Keyward. This version leaves them as they are and won't learn new words."
-                        WordStore.Notice.NOT_LEARNING -> "Your learned words couldn't be read, so Keyward isn't learning new words for now."
-                        WordStore.Notice.NONE -> null
-                    }
-                    noticeText?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = inter) }
-                    if (count > 0 || noticeText != null || forgetOk == false) {
-                        // One Forget at a time (Forget 3); "Forgotten." only when every copy is gone (Forget 1).
-                        Pill(if (count > 0) "Forget learned words ($count)" else "Forget learned words", false, p, inter, enabled = !forgetting) {
-                            forgetting = true; forgetOk = null
-                            words.forgetAsync { ok, s ->
-                                forgetting = false; status = s; forgetOk = ok
-                            }
-                        }
-                    }
-                    forgetOk?.let { ok ->
-                        Text(if (ok) "Forgotten." else "Couldn't forget your words. Try again.", color = Color(p.soft), fontSize = 14.sp, fontFamily = inter)
-                    }
+                    // The list's state, if there's anything to say (Q2, Q12); the Your words page has the list and Forget (Q27).
+                    noticeText(status?.notice)?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = inter) }
+                    val count = status?.count
+                    NavCard("Your words", if (count == null) "Search, remove or add." else "${wordsCount(count)}. Search, remove or add.", "Open", p, inter,
+                        role = Role.Button, clickLabel = "Open your words") { mainScroll = scroll.value; wordsPage = true }
                 }
 
                 Section("Feel", p, inter) {
@@ -287,6 +285,8 @@ class SettingsActivity : ComponentActivity() {
     }
 }
 
+private fun wordsCount(n: Int) = if (n == 1) "1 word" else "$n words"
+
 /** The raven with a soft scarlet halo, then the name in Fraunces. */
 @Composable
 private fun Header(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily) {
@@ -334,7 +334,7 @@ private fun Preview(p: ScarletPalette, keyHeight: Int, bubble: Boolean) {
     @Suppress("UNUSED_VARIABLE") val tuned = Tunables.version.intValue
     AndroidView(
         factory = { ctx ->
-            KeyboardPanel(ctx, NoKeys, {}).also { it.strip.show(listOf("Your", "Keyward", "keyboard"), 1) }
+            KeyboardPanel(ctx, NoKeys, { _, _ -> }).also { it.strip.show(listOf("Your", "Keyward", "keyboard"), 1) }
         },
         update = { panel ->
             panel.apply(KeyColors(p), keyHeight, bubble, Motion.scale(context))
@@ -396,20 +396,26 @@ private fun Toggle(title: String, note: String?, initial: Boolean, p: ScarletPal
 }
 
 @Composable
-private fun Pill(
+internal fun Pill(
     label: String, selected: Boolean, p: ScarletPalette, font: FontFamily, enabled: Boolean = true,
     /** One of a set (Theme, Key height): TalkBack says "radio button, selected" (K4). */
     choice: Boolean = false,
+    /** A delete action: outlined in scarlet, the only scarlet outline in Settings (Q30). */
+    danger: Boolean = false,
+    clickLabel: String? = null,
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(24.dp)
     Box(
         Modifier.defaultMinSize(minHeight = 48.dp).alpha(if (enabled) 1f else 0.5f).clip(shape)
             .background(Color(if (selected) p.tealWash else p.raised))
-            .border(1.dp, Color(if (selected) p.tealEdge else p.line), shape)
+            .then(
+                if (danger) Modifier.border(1.5.dp, Color(p.scarlet), shape)
+                else Modifier.border(1.dp, Color(if (selected) p.tealEdge else p.line), shape),
+            )
             .then(
                 if (choice) Modifier.selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
-                else Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+                else Modifier.clickable(enabled = enabled, role = Role.Button, onClickLabel = clickLabel, onClick = onClick),
             ).padding(horizontal = 18.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) { Text(label, color = Color(p.text), fontSize = 16.sp, fontFamily = font, fontWeight = FontWeight.Medium) }

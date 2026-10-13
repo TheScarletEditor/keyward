@@ -52,10 +52,6 @@ class KeysService : InputMethodService(), KeyListener {
     private var numeric = false
 
     private val composing = StringBuilder()
-    /** The word being typed was capitalised by the user mid-sentence: a name (MacBook, Priya), never autocorrected. */
-    private var wordIsName = false
-    /** Shift is on because the user tapped it, not because a sentence starts here. */
-    private var shiftByUser = false
     /** The field this keyboard last set up, so a restart of the same field keeps undo and the words taken back. */
     private var fieldKey: Pair<String?, Int>? = null
     private var autocorrectPick: String? = null
@@ -97,7 +93,7 @@ class KeysService : InputMethodService(), KeyListener {
     }
 
     override fun onCreateInputView(): View {
-        panel = KeyboardPanel(this, this) { pick(it) }
+        panel = KeyboardPanel(this, this) { word, save -> pick(word, save) }
         // The keyboard window reaches behind the navigation bar; keep the keys above it so Android's
         // hide-keyboard and switch-keyboard buttons never sit on top of ?123 and Enter.
         panel.keepAboveNavigation()
@@ -163,8 +159,10 @@ class KeysService : InputMethodService(), KeyListener {
         numeric = cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE || cls == InputType.TYPE_CLASS_DATETIME
 
         suggestOn = prefs.suggestions && cls == InputType.TYPE_CLASS_TEXT && !password && !addressy
-        autocorrectOn = suggestOn && prefs.autocorrect && !noSuggestFlag
-        learnOn = suggestOn && prefs.learn && !noSuggestFlag &&
+        // Keyward's own words search: never learned from or corrected (searching must never teach the keyboard).
+        val ownNoLearn = info.packageName == packageName && info.privateImeOptions?.contains(Words.NO_LEARN) == true
+        autocorrectOn = suggestOn && prefs.autocorrect && !noSuggestFlag && !ownNoLearn
+        learnOn = suggestOn && prefs.learn && !noSuggestFlag && !ownNoLearn &&
             info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING == 0
         if (learnOn) userWords.loadInBackground()
         soundOn = prefs.sound
@@ -265,7 +263,6 @@ class KeysService : InputMethodService(), KeyListener {
     }
     override fun onShiftLock() {
         keyboard.shift = Shift.LOCKED
-        shiftByUser = true
     }
     override fun onSpaceLongPress() {
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
@@ -284,10 +281,7 @@ class KeysService : InputMethodService(), KeyListener {
                 val look = if (composing.isEmpty()) lookBack() else null
                 // One batch, so the editor reports a single change and never a moment with no word being typed.
                 ic?.beginBatchEdit()
-                if (composing.isEmpty()) {
-                    if (look != null && look.word.isNotEmpty()) takeUp(look, look.word.length)
-                    else wordIsName = keyboard.shift == Shift.ONE && shiftByUser && look?.sentenceStart != true
-                }
+                if (composing.isEmpty() && look != null && look.word.isNotEmpty()) takeUp(look, look.word.length)
                 composing.append(s)
                 ic?.setComposingText(composing, 1)
                 ic?.endBatchEdit()
@@ -299,11 +293,11 @@ class KeysService : InputMethodService(), KeyListener {
             // right here, so backspace after "CINC?" deleted the "?" instead of putting "CINC" back).
             else -> separator(s)
         }
-        if (keyboard.shift == Shift.ONE) { keyboard.shift = Shift.OFF; shiftByUser = false }
+        if (keyboard.shift == Shift.ONE) keyboard.shift = Shift.OFF
     }
 
     /** The word the cursor sits at the end of ("" when none) and where it starts in the field (-1 when unknown). */
-    private class Look(val word: String, val start: Int, val sentenceStart: Boolean)
+    private class Look(val word: String, val start: Int)
 
     /**
      * Read only, and always before any edit: some editors (Jetpack Compose) apply a batch's edits only when it ends and
@@ -321,7 +315,7 @@ class KeysService : InputMethodService(), KeyListener {
         val before = st.text.subSequence(0, cur)
         val word = Words.wordAtEnd(before, MAX_WORD) ?: return null
         val start = if (st.offset >= 0) st.offset + cur - word.length else -1
-        return Look(word, start, Words.startsSentence(before.subSequence(0, before.length - word.length)))
+        return Look(word, start)
     }
 
     /**
@@ -337,13 +331,7 @@ class KeysService : InputMethodService(), KeyListener {
         else { ic.deleteSurroundingText(len, 0); ic.setComposingText(word, 1) }
         composing.clear()
         composing.append(word)
-        // Only where the box doesn't capitalise every word itself (subject lines, names): there the capital says nothing (R11).
-        val capsWords = (currentInputEditorInfo?.inputType ?: 0) and (InputType.TYPE_TEXT_FLAG_CAP_WORDS or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS) != 0
-        wordIsName = !capsWords && !look.sentenceStart && word.first().isUpperCase() && !(word.length > 1 && word.none { it.isLowerCase() })
     }
-
-    /** Capitalised by the user mid-sentence: a name, never autocorrected. */
-    private fun looksLikeName(word: String) = wordIsName && word.firstOrNull()?.isUpperCase() == true
 
     /** Space or punctuation: the word is finished, so this is where autocorrect happens. */
     private fun separator(sep: String) {
@@ -398,7 +386,8 @@ class KeysService : InputMethodService(), KeyListener {
             ic.deleteSurroundingText(u.corrected.length + u.separator.length, 0)
             ic.commitText(u.original + u.separator, 1)
             kept += u.original.lowercase()
-            if (learnOn) { userWords.record(u.original); userWords.record(u.original) }
+            // Taking a fix back saves the word: never corrected again, anywhere (Q29).
+            if (learnOn) { userWords.record(u.original); userWords.keep(u.original) }
             strip.clear()
             updateAutoCaps()
             return
@@ -440,11 +429,13 @@ class KeysService : InputMethodService(), KeyListener {
         updateAutoCaps()
     }
 
-    private fun pick(word: String) {
+    /** A suggestion tapped; [save]: it was the typed word with "+ Save", kept as typed and saved (Q28). */
+    private fun pick(word: String, save: Boolean) {
         val ic = currentInputConnection ?: return
-        val final = if (composing.isNotEmpty()) matchCase(composing.toString(), word) else word
+        val final = if (save) word else if (composing.isNotEmpty()) matchCase(composing.toString(), word) else word
         ic.commitText("$final ", 1)
         learn(final)
+        if (save && learnOn) userWords.keep(final)
         composing.clear(); strip.clear(); undo = null
         updateAutoCaps()
     }
@@ -456,7 +447,6 @@ class KeysService : InputMethodService(), KeyListener {
             Shift.ONE -> if (now - lastShiftTap < 350) Shift.LOCKED else Shift.OFF
             Shift.LOCKED -> Shift.OFF
         }
-        shiftByUser = keyboard.shift != Shift.OFF
         lastShiftTap = now
     }
 
@@ -473,7 +463,6 @@ class KeysService : InputMethodService(), KeyListener {
         val info = currentInputEditorInfo ?: return
         val caps = currentInputConnection?.getCursorCapsMode(info.inputType) ?: 0
         keyboard.shift = if (caps != 0) Shift.ONE else Shift.OFF
-        shiftByUser = false
     }
 
     // ---- suggestions ----
@@ -490,15 +479,17 @@ class KeysService : InputMethodService(), KeyListener {
         val learnNow = learnOn
         val correctNow = autocorrectOn
         val keptNow = HashSet(kept)
-        val nameNow = looksLikeName(typed)
         worker.execute {
             val started = System.nanoTime()
             val boost: (String) -> Int = { if (learnNow) userWords.boost(it) else 0 }
             val learned = if (learnNow) userWords.learned else emptyList()
             val known = { w: String -> d.isKnown(w) || (learnNow && userWords.isKnown(w)) }
             val cands = d.candidates(typed, boost, learned)
-            val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned, cands, nameNow)?.let { matchCase(typed, it) } else null
+            val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned, cands)?.let { matchCase(typed, it) } else null
             val ranked = cands.map { matchCase(typed, it.word) }.distinct()
+            val isKnown = known(typed)
+            // A word Keyward doesn't know, offered as typed with "+ Save" (Q28): saved, it's never corrected again.
+            val offerSave = learnNow && !isKnown && typed.length >= 2
             val list = ArrayList<String>(3)
             val highlight: Int
             if (pick != null) {
@@ -508,16 +499,16 @@ class KeysService : InputMethodService(), KeyListener {
                 // Not for a lone "i": a period keeps it lowercase (i.e.), so the highlight would promise too much (C1).
                 highlight = if (typed.equals("i", ignoreCase = true)) -1 else 1
             } else {
-                if (known(typed)) list += typed
+                if (isKnown || offerSave) list += typed
                 ranked.filter { it != typed }.take(3 - list.size).forEach { list += it }
-                highlight = if (list.firstOrNull() == typed) 0 else -1
+                highlight = if (isKnown && list.firstOrNull() == typed) 0 else -1
             }
             if (BuildConfig.TUNING) timeSuggestion(System.nanoTime() - started)
             main.post {
                 if (my != seq || composing.toString() != typed) return@post
                 autocorrectPick = pick
                 pickFor = typed
-                strip.show(list, highlight, replaces = pick != null && highlight == 1)
+                strip.show(list, highlight, replaces = pick != null && highlight == 1, saveSlot = if (offerSave) 0 else -1)
             }
         }
     }
@@ -528,10 +519,7 @@ class KeysService : InputMethodService(), KeyListener {
         if (pickFor == original) return autocorrectPick
         val d = dict ?: return null
         val known = { w: String -> d.isKnown(w) || (learnOn && userWords.isKnown(w)) }
-        return d.autocorrect(
-            original, known, { if (learnOn) userWords.boost(it) else 0 }, if (learnOn) userWords.learned else emptyList(),
-            name = looksLikeName(original),
-        )
+        return d.autocorrect(original, known, { if (learnOn) userWords.boost(it) else 0 }, if (learnOn) userWords.learned else emptyList())
             ?.let { matchCase(original, it) }
     }
 

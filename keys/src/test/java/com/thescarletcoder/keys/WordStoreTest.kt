@@ -43,13 +43,13 @@ class WordStoreTest {
     private fun store(move: (File, File) -> Boolean = { a, b -> a.renameTo(b) }, delete: (File) -> Boolean = { it.delete() }) =
         WordStore(dir, sealer, move = move, delete = delete)
     private fun writeList(body: ByteArray) = enc.writeBytes(sealer.seal(body))
-    private fun format1(text: String) = byteArrayOf(WordStore.FORMAT.toByte()) + text.toByteArray()
+    private fun format1(text: String) = byteArrayOf(1) + text.toByteArray()
 
     @Test fun roundTrip() {
         val s = store(); s.load()
-        repeat(2) { s.record("zorbex") }; s.record("quillet"); s.save()
+        repeat(3) { s.record("zorbex") }; s.record("quillet"); s.save()
         val t = store(); t.load()
-        assertTrue(t.isKnown("zorbex")); assertFalse(t.isKnown("quillet")); assertEquals(2, t.count)
+        assertTrue(t.isKnown("zorbex")); assertFalse(t.isKnown("quillet")); assertEquals(2, t.size)
     }
 
     @Test fun unreadableFileIsSetAsideAndNeverOverwritten() {
@@ -90,7 +90,7 @@ class WordStoreTest {
         s.load() // the next field
         assertTrue(s.isLoaded)
         assertTrue("old words kept", s.isKnown("zorbex"))
-        s.record("quillet"); s.save()
+        repeat(2) { s.record("quillet") }; s.save()
         val t = store(); t.load()
         assertTrue(t.isKnown("zorbex")); assertTrue("words from before the load are added", t.isKnown("quillet"))
     }
@@ -108,7 +108,7 @@ class WordStoreTest {
 
     @Test fun noticesAndForgetStartsANewList() {
         assertEquals(WordStore.Notice.NONE, store().apply { load() }.notice)
-        writeList(byteArrayOf((WordStore.FORMAT + 1).toByte()) + "zorbex\t2".toByteArray())
+        writeList(byteArrayOf((WordStore.FORMAT + 1).toByte()) + "zorbex\t3".toByteArray())
         val newer = store(); newer.load()
         assertEquals(WordStore.Notice.NEWER, newer.notice)
         assertTrue(newer.clear()); assertEquals(WordStore.Notice.NONE, newer.notice)
@@ -121,13 +121,13 @@ class WordStoreTest {
 
     @Test fun aKeyThatFailsEverySaveIsRotatedAndNothingIsLost() {
         val s = store(); s.load()
-        repeat(2) { s.record("zorbex") }; s.save()
+        repeat(3) { s.record("zorbex") }; s.save()
         s.record("quillet")
         sealer.brokenKey = true
         repeat(WordStore.MAX_PASSING) { s.save() }
         assertEquals(1, sealer.rotations)
         assertEquals("old key retired once the list is saved with the new one", listOf(2), sealer.keys)
-        val t = store(); t.load(); assertTrue(t.isKnown("zorbex")); assertEquals(2, t.count)
+        val t = store(); t.load(); assertTrue(t.isKnown("zorbex")); assertEquals(2, t.size)
     }
 
     @Test fun diskFailuresNeverReplaceTheKey() {
@@ -140,7 +140,7 @@ class WordStoreTest {
     @Test fun aRotationWhoseSaveFailsStrandsNothing() {
         var diskOk = true
         val s = store(move = { a, b -> diskOk && a.renameTo(b) }); s.load()
-        repeat(2) { s.record("zorbex") }; s.save()
+        repeat(3) { s.record("zorbex") }; s.save()
         sealer.brokenKey = true
         s.record("quillet")
         repeat(WordStore.MAX_PASSING - 1) { s.save() }
@@ -151,13 +151,13 @@ class WordStoreTest {
         diskOk = true
         s.save() // later save with the new key: then the old key goes
         assertEquals(listOf(2), sealer.keys)
-        val u = store(); u.load(); assertTrue(u.isKnown("zorbex")); assertEquals(2, u.count)
+        val u = store(); u.load(); assertTrue(u.isKnown("zorbex")); assertEquals(2, u.size)
     }
 
     @Test fun strayCharactersInTheFileAreCleaned() {
-        writeList(format1("zorbex\t2\n\u0001quillet\t3\nbad word\t2\nx\t5"))
+        writeList(format1("zorbex\t3\n\u0001quillet\t3\nbad word\t3\nx\t5"))
         val s = store(); s.load()
-        assertTrue(s.isKnown("quillet")); assertEquals(2, s.count)
+        assertTrue(s.isKnown("quillet")); assertEquals(2, s.size)
     }
 
     @Test fun fileWordsAreOlderThanWordsTypedBeforeTheLoad() {
@@ -165,8 +165,8 @@ class WordStoreTest {
         val s = store(); s.record("fresh"); s.load()
         for (i in 0 until WordStore.CAP - 1) s.record(name(i)) // fills the list, all used once
         s.save() // one over the cap: the oldest word used once goes, which is the file's "old"
-        assertFalse(s.isKnown("old")); assertEquals(WordStore.CAP, s.count)
-        val t = store(); t.load(); assertEquals(WordStore.CAP, t.count)
+        assertFalse(s.isKnown("old")); assertEquals(WordStore.CAP, s.size)
+        val t = store(); t.load(); assertEquals(WordStore.CAP, t.size)
     }
 
     @Test fun failedRenameKeepsDirtyAndRemovesTemp() {
@@ -175,11 +175,11 @@ class WordStoreTest {
         s.record("zorbex"); s.save()
         assertFalse(File(dir, "words.tmp").exists()); assertFalse(enc.exists())
         allow = true; s.save() // still dirty, so it tries again
-        val t = store(); t.load(); assertEquals(1, t.count)
+        val t = store(); t.load(); assertEquals(1, t.size)
     }
 
     @Test fun leftoverTempIsIgnored() {
-        writeList(format1("zorbex\t2"))
+        writeList(format1("zorbex\t3"))
         File(dir, "words.tmp").writeBytes(sealer.seal(format1("intruder\t9")))
         val s = store(); s.load()
         assertFalse(File(dir, "words.tmp").exists())
@@ -187,48 +187,48 @@ class WordStoreTest {
     }
 
     @Test fun badCountLineIsSkipped() {
-        writeList(format1("zorbex\t2\nquillet\tlots\nflimber\t-4\n\tnoword"))
+        writeList(format1("zorbex\t3\nquillet\tlots\nflimber\t-4\n\tnoword"))
         val s = store(); s.load()
-        assertEquals(1, s.count); assertTrue(s.isKnown("zorbex"))
+        assertEquals(1, s.size); assertTrue(s.isKnown("zorbex"))
     }
 
     @Test fun readsA021File() {
-        writeList("zorbex\t2\nquillet\t1".toByteArray()) // 0.2.1: no format byte
+        writeList("zorbex\t3\nquillet\t1".toByteArray()) // 0.2.1: no format byte
         val s = store(); s.load()
-        assertEquals(2, s.count); assertTrue(s.isKnown("zorbex"))
+        assertEquals(2, s.size); assertTrue(s.isKnown("zorbex"))
         s.record("quillet"); s.save()
         assertEquals("saved in the current format", WordStore.FORMAT, WordStore.formatOf(sealer.open(enc.readBytes())))
     }
 
     @Test fun reads021FilesStartingWithAccentOrApostrophe() {
-        writeList("éclair\t2\nzorbex\t1".toByteArray())
+        writeList("éclair\t3\nzorbex\t1".toByteArray())
         assertTrue(store().apply { load() }.isKnown("éclair"))
-        writeList("'tis\t2".toByteArray())
+        writeList("'tis\t3".toByteArray())
         assertTrue(store().apply { load() }.isKnown("'tis"))
     }
 
     @Test fun wordsTypedBeforeAnUnreadableFileAreKept() {
         enc.writeBytes(byteArrayOf(1, 2, 3))
         val s = store()
-        repeat(2) { s.record("zorbex") } // typed before the file was read
+        repeat(3) { s.record("zorbex") } // typed before the file was read
         s.load(); s.save()
         assertTrue(s.hasSetAside)
         val t = store(); t.load(); assertTrue(t.isKnown("zorbex"))
     }
 
     @Test fun zeroFormatByteIsUnreadable() {
-        writeList(byteArrayOf(0) + "zorbex\t2".toByteArray())
+        writeList(byteArrayOf(0) + "zorbex\t3".toByteArray())
         val s = store(); s.load()
-        assertTrue(s.hasSetAside); assertEquals(0, s.count)
+        assertTrue(s.hasSetAside); assertEquals(0, s.size)
     }
 
     @Test fun newerFormatIsRefusedWithoutWriting() {
-        writeList(byteArrayOf((WordStore.FORMAT + 1).toByte()) + "zorbex\t2".toByteArray())
+        writeList(byteArrayOf((WordStore.FORMAT + 1).toByte()) + "zorbex\t3".toByteArray())
         val before = enc.readBytes()
         val s = store(); s.load()
         s.record("quillet"); s.record("quillet"); s.save()
         assertArrayEquals(before, enc.readBytes())
-        assertEquals(0, s.count)
+        assertEquals(0, s.size)
     }
 
     @Test fun capAtFiveThousand() {
@@ -236,49 +236,49 @@ class WordStoreTest {
         repeat(3) { s.record("keepme") }
         for (i in 0 until WordStore.CAP + 50) s.record(name(i))
         s.save() // trims, off the typing path
-        assertEquals(WordStore.CAP, s.count)
+        assertEquals(WordStore.CAP, s.size)
         assertTrue("the most used word stays", s.isKnown("keepme"))
         // A new word still gets learned when the list is full of words used once: the oldest go first.
-        repeat(2) { s.record("zorbex") }
+        repeat(3) { s.record("zorbex") }
         s.save()
         assertTrue(s.isKnown("zorbex"))
-        assertEquals(WordStore.CAP, s.count)
-        val t = store(); t.load(); assertEquals(WordStore.CAP, t.count); assertTrue(t.isKnown("zorbex"))
+        assertEquals(WordStore.CAP, s.size)
+        val t = store(); t.load(); assertEquals(WordStore.CAP, t.size); assertTrue(t.isKnown("zorbex"))
     }
 
     @Test fun forgetThenSaveWritesNothingBack() {
         val s = store(); s.load()
-        repeat(2) { s.record("zorbex") }; s.save()
+        repeat(3) { s.record("zorbex") }; s.save()
         File(dir, "words.unreadable").writeBytes(byteArrayOf(1))
         assertTrue(s.clear())
         s.save() // the keyboard saving right after
         assertFalse(enc.exists()); assertFalse(s.hasSetAside)
-        val t = store(); t.load(); assertEquals(0, t.count)
+        val t = store(); t.load(); assertEquals(0, t.size)
     }
 
     @Test fun forgetRemovesEveryCopy() {
         val s = store(); s.load()
-        repeat(2) { s.record("zorbex") }; s.save()
+        repeat(3) { s.record("zorbex") }; s.save()
         File(dir, "words.tmp").writeBytes(byteArrayOf(1))
         File(dir, "words.unreadable").writeBytes(byteArrayOf(2))
         File(dir, "words.unreadable-2").writeBytes(byteArrayOf(3))
         assertTrue(s.clear())
         assertEquals(emptyList<String>(), dir.list()!!.toList())
-        assertEquals(0, s.count)
+        assertEquals(0, s.size)
     }
 
     @Test fun failedDeleteReportsFailureAndKeepsTheWords() {
         val s = store(delete = { false }); s.load()
-        repeat(2) { s.record("zorbex") }; s.record("quillet"); s.save()
+        repeat(3) { s.record("zorbex") }; s.record("quillet"); s.save()
         assertFalse(s.clear())
-        assertEquals("count kept", 2, s.count)
+        assertEquals("count kept", 2, s.size)
         assertTrue(s.isKnown("zorbex"))
         val t = store(); t.load(); assertTrue("file kept", t.isKnown("zorbex"))
     }
 
     @Test fun aPartlyFailedForgetLeavesTheListOnDisk() {
         val s = store(delete = { f -> f.name != "words.unreadable" && f.delete() }); s.load()
-        repeat(2) { s.record("zorbex") }; s.save()
+        repeat(3) { s.record("zorbex") }; s.save()
         File(dir, "words.unreadable").writeBytes(byteArrayOf(1))
         assertFalse(s.clear())
         val t = store(); t.load(); assertTrue("the list is still on disk", t.isKnown("zorbex"))
@@ -314,7 +314,70 @@ class WordStoreTest {
         s.record("zorbex"); s.save()
         s.record("quillet") // after the save: still dirty, so the next save writes it
         s.save()
-        val t = store(); t.load(); assertEquals(2, t.count)
+        val t = store(); t.load(); assertEquals(2, t.size)
+    }
+
+    @Test fun aWordIsLearnedAtThreeUses() {
+        val s = store(); s.load()
+        repeat(2) { s.record("zorbex") }
+        assertFalse(s.isKnown("zorbex")); assertEquals("used twice: kept quietly, not counted", 0, s.count)
+        s.record("zorbex")
+        assertTrue(s.isKnown("zorbex")); assertEquals(1, s.count)
+    }
+
+    @Test fun savedWordsRoundTripInFormat2() {
+        val s = store(); s.load()
+        assertTrue(s.keep("Zorvex")); repeat(3) { s.record("quillet") }; s.record("flimber"); s.save()
+        assertEquals(WordStore.FORMAT, WordStore.formatOf(sealer.open(enc.readBytes())))
+        val t = store(); t.load()
+        assertTrue(t.isKnown("zorvex")); assertTrue(t.isSaved("zorvex")); assertFalse(t.isSaved("quillet"))
+        assertEquals(
+            listOf(WordStore.Entry("quillet", 3, false), WordStore.Entry("zorvex", 1, true)),
+            t.entries(),
+        )
+        assertEquals(2, t.count)
+    }
+
+    @Test fun aFormat1FileKeepsItsCountsAndNothingIsSaved() {
+        writeList(format1("zorbex\t3\nquillet\t2"))
+        val s = store(); s.load()
+        assertTrue(s.isKnown("zorbex")); assertFalse(s.isKnown("quillet")); assertFalse(s.isSaved("zorbex"))
+        assertEquals(2, s.size); assertEquals(1, s.count)
+    }
+
+    @Test fun savedWordsSurviveTheCap() {
+        val s = store(); s.load()
+        s.keep("zorvex")
+        repeat(3) { s.record("keepme") }
+        for (i in 0 until WordStore.CAP + 50) repeat(5) { s.record(name(i)) } // all used more than the saved word
+        s.save()
+        assertEquals(WordStore.CAP, s.size)
+        assertTrue("a saved word is never trimmed", s.isKnown("zorvex"))
+        val t = store(); t.load(); assertTrue(t.isSaved("zorvex"))
+    }
+
+    @Test fun removeTakesAWordOffAndItLearnsAgain() {
+        val s = store(); s.load()
+        s.keep("zorvex"); repeat(3) { s.record("quillet") }; s.save()
+        s.remove("Zorvex"); s.remove("quillet"); s.save()
+        val t = store(); t.load()
+        assertFalse(t.isKnown("zorvex")); assertFalse(t.isKnown("quillet")); assertEquals(0, t.size)
+        repeat(3) { t.record("quillet") }
+        assertTrue("used three more times: learned again", t.isKnown("quillet"))
+    }
+
+    @Test fun keepRefusesWhatIsNotAWord() {
+        val s = store(); s.load()
+        assertFalse(s.keep("a")); assertFalse(s.keep("two words")); assertFalse(s.keep("x1"))
+        assertEquals(0, s.size)
+    }
+
+    @Test fun forgetDropsSavedWords() {
+        val s = store(); s.load()
+        s.keep("zorvex"); s.save()
+        assertTrue(s.clear())
+        assertFalse(s.isKnown("zorvex"))
+        val t = store(); t.load(); assertEquals(0, t.size)
     }
 
     /** Letters-only made-up words: a, b, ..., z, ba, bb, ... */

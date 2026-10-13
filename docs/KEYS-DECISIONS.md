@@ -2,6 +2,18 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, /prep resume before the release)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q16 | Which waiting backlog items go into 0.2.2 | "KB-5 TalkBack accents (Recommended),KB-6 \"will replace\" (Recommended)" | Slice 6a and 6b; KB-7 stays on the backlog. | KeyLabelsTest; review. |
+| Q17 | Keyward: own release or 0.2.2 | "Rename in 0.2.2" | Slice 6c; supersedes the FINALIZE-0.2.2 Q1 answer ("Its own release"). | grep for visible "Scarlet Keys"; screenshots. |
+| Q18 | The space bar's mark | "KEYWARD (Recommended)" | WORDMARK = "KEYWARD". | Screenshot. |
+| Q19 | Settings header | "Add the publisher (Recommended)" | "Keyward" / "A keyboard by The Scarlet Coder. No internet access, nothing typed is ever logged or sent anywhere." | Screenshot. |
+| Q20 | Repo and file names | "Rename the repo too" | APK `keyward-<version>.apk`, release "Keyward <version>", GitHub repo renamed to `keyward` at ship (confirmed at that step). | Ship stage. |
+| Q21 | Announcing the change | "\"Scarlet Keys is now Keyward.\" (Recommended)" | Release notes start "Scarlet Keys is now Keyward: same keyboard, same promise, a name of its own."; README "Formerly Scarlet Keys." | Release notes, README. |
+| Q22 | The two-drive backup for 0.2.2 | "Skip for 0.2.2 (Recommended)" | Release without it; recorded in Command STATUS-AUDIT. | STATUS-AUDIT line. |
+
 ## 2026-10-12 (the owner, slice 4 wording)
 
 | # | Question | Answer (word for word) | Effect | Check |

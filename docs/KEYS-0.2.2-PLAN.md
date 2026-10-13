@@ -189,6 +189,22 @@ Full scope (decided, Q3):
 
 `/finalize --slice`: one review round, clean. Fixed while here: L4-1 TalkBack focus is cleared when the layout swaps (letters, symbols, number pad), so it doesn't land on a different key; L4-2 Theme and Key height rows are a selectable group ("1 of 3"). Noted for later (backlog): the accent row has no TalkBack route (long press types the digit); the highlighted suggestion (the autocorrect pick) is spoken like the others; on a phone the suggestion strip is 42 dp tall, under 48 dp (as since 0.2.0).
 
+### Slice 6: fold-ins and the name (added 2026-10-12, /prep resume)
+
+The owner, during /finalize 0.2.2 Stage 5: "I would prefer to finish up this project ASAP. Lets run another /prep, fold in whatever's waiting, and then finalize and release." Resume found: KB-5 to KB-7 on the backlog, Keyward (scarlet-hq D-021) decided for its own release, the two-drive backup not run. Owner's answers Q16 to Q22 (`KEYS-DECISIONS.md`). Baseline: /finalize QA pass 3 at 9b1354a (49 unit tests, lintRelease no errors, release/personal/smoke build); no drift (audit agent A, today).
+
+**6a. KB-5, accents with TalkBack.** A vowel key's node offers each accent as its own TalkBack action ("é" etc.), next to the long press that types the digit. Checks: a JVM test that every accent in `Layouts.accents` has a spoken action label; emulator: the actions appear on the node (`uiautomator` can't list IME actions, so by code review plus TalkBack's actions menu if it can be reached).
+
+**6b. KB-6, the highlighted suggestion.** TalkBack says "Suggestion: hello, will replace" for the word space will put in (the strip's highlight); the others stay "Suggestion: hello". Check: KeyLabels test.
+
+**6c. Keyward (D-021, Q18 to Q21).** Every visible "Scarlet Keys" becomes Keyward; package id, folder names and the dictionary's internal magic stay. App name and keyboard label "Keyward"; space bar "KEYWARD"; Settings header "Keyward" / "A keyboard by The Scarlet Coder. No internet access, nothing typed is ever logged or sent anywhere."; set-up lines, notices, licenses intro and list use Keyward; README title Keyward with "Formerly Scarlet Keys." under it; release notes start "Scarlet Keys is now Keyward: same keyboard, same promise, a name of its own."; release.ps1 writes `dist/keyward-<version>.apk`; scripts' messages say Keyward. At ship: the GitHub repo is renamed to `keyward` (with the owner's OK at that step), the git remote and scarlet-hq's repo map follow, and the site's links are updated in the site step. Checks: grep finds no "Scarlet Keys" in user-visible strings (code, res, README) except "Formerly Scarlet Keys." and the release-note line; screenshots of the header, the space bar and the keyboard picker label.
+
+Not folded in: KB-7 (taller strip; owner left it out), swipe typing (declined), custom key sounds (parked "later"), F-Droid (its own project), the skipped cleanups C5 (no behaviour change, not needed).
+
+Backup: the owner's skip for 0.2.2 (Q22), recorded in Command STATUS-AUDIT.
+
+After 6a to 6c: `/finalize --slice` on the slice, then /finalize 0.2.2 resumes: Stage 1 to 4 re-checks on the new diff (audit and review on slice 6 only, QA in full), Stage 5 again (emulator walk for the rename and the new TalkBack actions; the owner's checklist gains the name items), then ship.
+
 ### Slice 5: release 0.2.2
 
 - versionName 0.2.2, versionCode 5; README and release notes match the code.

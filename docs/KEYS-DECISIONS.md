@@ -2,6 +2,15 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, slice 7: your words)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q27 | Layout for the words list | "A: Your words page (Recommended)" | A "Your words" card in Settings opens a page with search, the list, remove and Forget all. | Emulator walk. |
+| Q28 | Accidental capitals | "Correct unless saved (Recommended)" | The names rule (Q7) is replaced: capitalised words are corrected unless saved or known; "+ Save" on the strip. Supersedes Q7. | SuggestTest; emulator. |
+| Q29 | What the words list holds | "Learned + saved, shown apart (Recommended)" | Learned at 3 uses; saved kept until removed; one-off words not counted or listed. | WordStoreTest. |
+| Q30 | Scarlet outlines | "Delete actions (Recommended)" | Remove and Forget all (and their confirms) outlined in scarlet; Enter teal. | Screenshots. |
+
 ## 2026-10-12 (the owner, slice 6 wording)
 
 | # | Question | Answer (word for word) | Effect | Check |

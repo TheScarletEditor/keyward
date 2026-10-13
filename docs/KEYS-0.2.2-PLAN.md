@@ -207,6 +207,19 @@ Backup: the owner's skip for 0.2.2 (Q22), recorded in Command STATUS-AUDIT.
 
 After 6a to 6c: `/finalize --slice` on the slice, then /finalize 0.2.2 resumes: Stage 1 to 4 re-checks on the new diff (audit and review on slice 6 only, QA in full), Stage 5 again (emulator walk for the rename and the new TalkBack actions; the owner's checklist gains the name items), then ship.
 
+### Slice 7: your words, saved words, teal Enter (added 2026-10-12, release on hold)
+
+The owner, at the signing step: "hold for my final testing. In settings, words get forgotten with no confirmation. Minimum 2 clicks to delete anything. Change it so if i accidentally capitalize a word, it only sticks if i click to save it as a custom word I had 404 saved words before, that seems really high. I want a library people can search and remove from. Make the enter/return/submit button teal instead of scarlet. Let scarlet take outlining important buttons instead. show me a couple drafts before finalizing the design". Two drafts shown; owner's picks Q27 to Q30.
+
+- **Your words page (Draft A).** Settings, Typing: "Your words" card with the count, opens a page: search, the list (saved words marked "saved by you", learned words "used N times"), remove per word with a second step on the row (Keep / Remove), and "Forget all words" with a second step. Read and changed off the main thread.
+- **What counts.** A word is learned at 3 uses (was 2). Saved words: kept until removed, never trimmed, never corrected. Words used once or twice are kept quietly (as now, under the cap) but not counted or listed. Taking a fix back saves the word. The count is learned plus saved.
+- **Capitals.** The names rule goes: a capitalised word is corrected like any other unless it's saved or known. When the typed word isn't known and learning is on, the strip's first slot shows it with "+ Save": a tap keeps it as typed and saves it.
+- **Two taps to delete** everywhere (per word, Forget all). Delete actions are outlined in scarlet.
+- **Enter is teal** (solid, the theme's teal, icon in the background colour); no scarlet on the keyboard.
+- **Format.** The learned-words file goes to format 2 (a saved mark per line); formats 0 and 1 read; a newer format is refused as before.
+- What can go wrong (proposed, checks): a saved word removed by the cap (never: saved words are exempt); a 0.2.2-format-1 file read (counts kept, nothing saved); removing a word that's then typed again (learns again after 3 uses, as any word); the list at 5,000 words in Settings (shown alphabetically, search narrows; at most a few hundred rows drawn); remove or Forget racing a keyboard save (same file lock as Forget); "+ Save" in a private or no-learning field (never shown there).
+- Checks: WordStore tests (format 2 round trip, format 1 read, saved words survive the cap and trim, remove, the 3-use threshold, undo saves), KeyLabels test for the save label, emulator: the page, search, remove (two steps), Forget all (two steps), "+ Save" on a capitalised unknown word, teal Enter in light and dark.
+
 ### Slice 5: release 0.2.2
 
 - versionName 0.2.2, versionCode 5; README and release notes match the code.

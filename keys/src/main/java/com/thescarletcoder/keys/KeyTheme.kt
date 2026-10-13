@@ -54,6 +54,13 @@ object KeyIcons {
     val RETURN_HEAD = "M9 10.5 L5.5 14 L9 17.5"
     val LOCK_SHACKLE = "M8.5 10.5 V8 a3.5 3.5 0 0 1 7 0 v2.5"
 
+    // Settings, Your privacy (Q46): stroked like the keys.
+    val NO_NETWORK = "M3.5 9.5 a12 12 0 0 1 17 0 M6.5 12.8 a7.5 7.5 0 0 1 11 0 M9.5 16 a3.5 3.5 0 0 1 5 0 M12 19.5 h0.01 M4 4 L20 20"
+    val LOCK = "M6 10.5 h12 a1.5 1.5 0 0 1 1.5 1.5 v7 a1.5 1.5 0 0 1 -1.5 1.5 h-12 a1.5 1.5 0 0 1 -1.5 -1.5 v-7 a1.5 1.5 0 0 1 1.5 -1.5 Z M8.5 10.5 V8 a3.5 3.5 0 0 1 7 0 v2.5"
+    val FINGERPRINT = "M7 18 c-1.5 -2 -2 -4 -2 -6 a7 7 0 0 1 14 0 v1 M9.5 19.5 c-1 -2 -1.5 -4.5 -1.5 -7.5 a4 4 0 0 1 8 0 c0 3 -0.5 5 -1.5 7 M12 12 c0 3 0.5 6 2 8"
+    val HIDDEN = "M2.5 12 c2.5 -4.5 5.7 -6.5 9.5 -6.5 s7 2 9.5 6.5 c-2.5 4.5 -5.7 6.5 -9.5 6.5 s-7 -2 -9.5 -6.5 Z M12 9 a3 3 0 1 1 0 6 a3 3 0 1 1 0 -6 Z M4 4 L20 20"
+    val NONE = "M12 3.5 a8.5 8.5 0 1 1 0 17 a8.5 8.5 0 1 1 0 -17 Z M6 6 L18 18"
+
     /** [data] scaled from the 24 grid to [sizePx], origin at the icon's top-left. */
     fun path(data: String, sizePx: Float): Path = PathParser.createPathFromPathData(data).apply {
         transform(Matrix().apply { setScale(sizePx / GRID, sizePx / GRID) })

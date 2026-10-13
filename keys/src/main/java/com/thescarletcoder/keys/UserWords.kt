@@ -66,9 +66,9 @@ class UserWords private constructor(context: Context) {
 
     /** What Settings shows: the count, every word held (listed or not, for Forget all), and the notice, if any. */
     data class Status(
-        val count: Int, val notice: WordStore.Notice, val held: Int = count, val canKeep: Boolean = true,
+        val count: Int, val notice: WordStore.Notice, val held: Int, val canKeep: Boolean,
         /** The list was read: false after a passing error, when the page can't say what's there. */
-        val loaded: Boolean = true,
+        val loaded: Boolean,
     )
 
     /**

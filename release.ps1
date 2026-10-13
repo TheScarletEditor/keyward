@@ -24,8 +24,7 @@ New-Item -ItemType Directory -Force dist | Out-Null
 $out = ".\dist\keyward-$version.apk"
 Write-Host "apksigner asks for the key password next."
 & $apksigner sign --ks $keystore --ks-key-alias $alias --out $out ".\keys\build\outputs\apk\release\keys-release-unsigned.apk"
-$signed = $LASTEXITCODE -eq 0
-if (-not $signed) { Write-Host "Signing failed. Wrong password?"; exit 1 }
+if ($LASTEXITCODE -ne 0) { Write-Host "Signing failed. Wrong password?"; exit 1 }
 Remove-Item "$out.idsig" -ErrorAction SilentlyContinue
 
 & $apksigner verify --print-certs $out | Select-String 'SHA-256'

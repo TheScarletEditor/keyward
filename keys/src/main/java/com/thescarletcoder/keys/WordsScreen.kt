@@ -1,7 +1,5 @@
 package com.thescarletcoder.keys
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -11,7 +9,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,7 +23,6 @@ import androidx.compose.ui.Modifier
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.InterceptPlatformTextInput
 import androidx.compose.ui.platform.PlatformTextInputMethodRequest
 import androidx.compose.ui.focus.FocusRequester
@@ -93,11 +89,12 @@ internal fun WordsPage(
     val unread = status?.loaded == false
     val list = entries?.takeUnless { unread }
     if (unread) Text("Couldn't read your words just now. Open this page again in a moment.", color = Color(p.text), fontSize = 15.sp, fontFamily = font)
-    val shown = list?.filter { q.isEmpty() || it.word.contains(q) }.orEmpty()
+    val shown = remember(list, q) { list?.filter { q.isEmpty() || it.word.contains(q) }.orEmpty() }
 
     // A word not on the list can be saved from here ("Search, remove or add").
     // Not while the list is refused (a newer version's list, or one that can't be read): a save would always fail.
-    if (list != null && status?.canKeep != false && Words.isWord(q) && list.none { it.word == q }) {
+    val listed = remember(list, q) { list?.any { it.word == q } ?: true }
+    if (list != null && status?.canKeep != false && Words.isWord(q) && !listed) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("\"$q\" isn't on your list.", color = Color(p.text), fontSize = 16.sp, fontFamily = font, modifier = Modifier.weight(1f))
             Pill("Save", false, p, font, enabled = !busy) {
@@ -110,18 +107,14 @@ internal fun WordsPage(
             }
         }
     }
-    // Always there, so TalkBack hears each new message (a live region announces changes, not new nodes).
-    Box(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
-        message?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = font) }
-    }
+    Announce(message, p, font)
 
     when {
         list == null -> Unit
         list.isEmpty() -> Text("No words yet. Words you use often show up here, and words you save.", color = Color(p.soft), fontSize = 15.sp, fontFamily = font)
         shown.isEmpty() -> Text("No words match.", color = Color(p.soft), fontSize = 15.sp, fontFamily = font)
         else -> Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(p.surface)).border(1.dp, Color(p.line), RoundedCornerShape(16.dp))
-                .padding(horizontal = 18.dp, vertical = 6.dp),
+            Modifier.card(p).padding(horizontal = 18.dp, vertical = 6.dp),
         ) {
             shown.take(MAX_ROWS).forEach { e ->
                 WordRow(e, confirming == e.word, busy, p, font,
@@ -148,18 +141,14 @@ internal fun WordsPage(
         if (!confirmForget) {
             Pill("Forget all words", false, p, font, enabled = !forgetting, danger = true) { confirmForget = true }
         } else {
-            val ask = remember { FocusRequester() }
-            LaunchedEffect(Unit) { runCatching { ask.requestFocus() } }
-            Text(
+            Question(
                 when {
                     held > count -> "Forget all your words, including ones used only once or twice? This can't be undone."
                     count == 1 -> "Forget your 1 word? This can't be undone."
                     count > 1 -> "Forget all $count words? This can't be undone."
                     else -> "Forget all your words? This can't be undone."
                 },
-                color = Color(p.text), fontSize = 16.sp, fontFamily = font,
-                // TalkBack lands on the question, not at the top of the page (the button it was on is gone).
-                modifier = Modifier.focusRequester(ask).focusable().semantics { liveRegion = LiveRegionMode.Polite },
+                16, p, font,
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Pill("Keep", false, p, font) { confirmForget = false }
@@ -167,9 +156,7 @@ internal fun WordsPage(
             }
         }
     }
-    Box(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
-        forgetOk?.let { ok -> Text(if (ok) "Forgotten." else "Couldn't forget your words. Try again.", color = Color(p.soft), fontSize = 14.sp, fontFamily = font) }
-    }
+    Announce(forgetOk?.let { ok -> if (ok) "Forgotten." else "Couldn't forget your words. Try again." }, p, font)
 }
 
 /** One word: the word and what it is, then Remove; once tapped, the row asks (Keep / Remove). */
@@ -189,11 +176,7 @@ private fun WordRow(
                 Pill("Remove", false, p, font, enabled = !busy, danger = true, clickLabel = "Remove ${e.word}", onClick = onRemove)
             }
         } else {
-            val ask = remember { FocusRequester() }
-            LaunchedEffect(Unit) { runCatching { ask.requestFocus() } }
-            // TalkBack lands on the question, not at the top of the page (the Remove it was on is gone).
-            Text("Remove \"${e.word}\"?", color = Color(p.text), fontSize = 17.sp, fontFamily = font,
-                modifier = Modifier.focusRequester(ask).focusable().semantics { liveRegion = LiveRegionMode.Polite })
+            Question("Remove \"${e.word}\"?", 17, p, font)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Pill("Keep", false, p, font, onClick = onKeep)
                 Pill("Remove", false, p, font, enabled = !busy, danger = true, clickLabel = "Remove ${e.word} for good", onClick = onConfirm)
@@ -224,3 +207,20 @@ private fun NoLearning(content: @Composable () -> Unit) = InterceptPlatformTextI
     },
     content = content,
 )
+
+/** A two-tap question (Q30). TalkBack lands on it, not at the top of the page: the button it was on is gone. */
+@Composable
+private fun Question(text: String, sizeSp: Int, p: ScarletPalette, font: FontFamily) {
+    val ask = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { ask.requestFocus() } }
+    Text(text, color = Color(p.text), fontSize = sizeSp.sp, fontFamily = font,
+        modifier = Modifier.focusRequester(ask).focusable().semantics { liveRegion = LiveRegionMode.Polite })
+}
+
+/** A result line that's always there, so TalkBack hears each new one (a live region announces changes, not new nodes). */
+@Composable
+private fun Announce(text: String?, p: ScarletPalette, font: FontFamily) {
+    Box(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
+        text?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = font) }
+    }
+}

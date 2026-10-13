@@ -42,15 +42,19 @@ fun LicensesList(p: ScarletPalette, font: FontFamily, onOpen: (Licenses.Part) ->
 }
 
 /** A card that opens another page: title, a line under it, and a word on the right ("Open", "Read"). */
+/** The look of every card in Settings: full width, rounded, the surface colour with a hairline edge. */
+internal fun Modifier.card(p: ScarletPalette): Modifier {
+    val shape = RoundedCornerShape(16.dp)
+    return fillMaxWidth().clip(shape).background(Color(p.surface)).border(1.dp, Color(p.line), shape)
+}
+
 @Composable
 internal fun NavCard(
     title: String, note: String, action: String, p: ScarletPalette, font: FontFamily,
     titleSize: Int = 18, role: Role? = null, clickLabel: String? = null, onClick: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(p.surface))
-            .border(1.dp, Color(p.line), RoundedCornerShape(16.dp))
-            .clickable(role = role, onClickLabel = clickLabel, onClick = onClick).padding(18.dp),
+        Modifier.card(p).clickable(role = role, onClickLabel = clickLabel, onClick = onClick).padding(18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

@@ -64,7 +64,7 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
     private val chipLine = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1 * density }
     private val chipPad = 7 * density
     private val chipGap = 6 * density
-    private val chipW get() = chip.measureText(SAVE) + 2 * chipPad
+    private val chipW = chip.measureText(SAVE) + 2 * chipPad
 
     private val lockPx = 16 * density
     private val lockBody = KeyIcons.roundRect(5.5f, 10.5f, 13f, 9.5f, 2f, lockPx)
@@ -173,15 +173,15 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
             }
             val t = if (fade <= 0f) 1f else (now - slotStart[i]) / fade
             if (t < 1f) animating = true
-            paint.color = if (i == highlight) c.text else c.soft
+            paint.color = if (i == highlight || i == saveSlot) c.text else c.soft
             val alpha = (Motion.easeOut(t) * 255).toInt()
             paint.alpha = alpha
+            val baseline = cy - (paint.descent() + paint.ascent()) / 2
             if (i == saveSlot) {
                 // The word, then a small teal "+ Save" pill, centred together in the slot.
-                paint.color = c.text; paint.alpha = alpha
                 val wordW = paint.measureText(w)
                 val left = cx - (wordW + chipGap + chipW) / 2
-                canvas.drawText(w, left + wordW / 2, cy - (paint.descent() + paint.ascent()) / 2, paint)
+                canvas.drawText(w, left + wordW / 2, baseline, paint)
                 val cl = left + wordW + chipGap
                 val ch = (chip.descent() - chip.ascent()) / 2 + 3 * density
                 pill.set(cl, cy - ch, cl + chipW, cy + ch)
@@ -189,7 +189,7 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
                 canvas.drawRoundRect(pill, ch, ch, chipLine)
                 chip.color = c.save; chip.alpha = alpha
                 canvas.drawText(SAVE, pill.centerX(), cy - (chip.descent() + chip.ascent()) / 2, chip)
-            } else canvas.drawText(w, cx, cy - (paint.descent() + paint.ascent()) / 2, paint)
+            } else canvas.drawText(w, cx, baseline, paint)
             // Dividers only between two slots that both have a word.
             if (i > 0 && shown[i - 1] != null) {
                 divider.color = c.divider

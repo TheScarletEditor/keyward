@@ -17,7 +17,7 @@ class Dictionary private constructor(
     /**
      * Indices for the corrector, by word length (letters only, apostrophes ignored) and then by first letter, each in
      * dictionary order. A misspelling's first letter is the typed one or a neighbour, so only those groups are read
-     * (about a quarter of a length). Built in two counting passes, without boxing.
+     * (about a quarter of a length). Built in two counting passes, so only the group counts are boxed, not every index.
      */
     private val byLengthAndFirst: Array<Map<Char, IntArray>> = run {
         val key = IntArray(lower.size) // length shl 16 or first letter; -1 for a word with no letters

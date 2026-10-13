@@ -137,9 +137,13 @@ class KeysService : InputMethodService(), KeyListener {
      */
     override fun onEvaluateFullscreenMode(): Boolean = false
 
+    /** The open field is a password field: never a letter bubble or accent row there, each character would show (Q34). */
+    private var passwordField = false
+
     private fun applyLook() {
         val palette = ScarletTokens.resolve(prefs.theme)
-        panel.apply(KeyColors(palette), prefs.keyHeight, prefs.bubble, Motion.scale(this))
+        panel.apply(KeyColors(palette), prefs.keyHeight, prefs.bubble && !passwordField, Motion.scale(this))
+        keyboard.accentsOn = !passwordField
     }
 
     /** New input view with the current look, set up again for the field that's open. */
@@ -202,11 +206,8 @@ class KeysService : InputMethodService(), KeyListener {
         if (userWordsOn) userWords.loadInBackground() else if (locked) userWords.unloadInBackground()
         soundOn = prefs.sound
         vibrateOn = prefs.vibrate
+        passwordField = password
         applyLook()
-        // After applyLook (which sets the bubble from the setting): never a letter bubble or accent row in a password
-        // field, where each character would show on screen (Q34).
-        keyboard.bubbleEnabled = prefs.bubble && !password
-        keyboard.accentsOn = !password
 
         enterAction = info.imeOptions and EditorInfo.IME_MASK_ACTION
         val multiline = info.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0
@@ -216,8 +217,8 @@ class KeysService : InputMethodService(), KeyListener {
         keyboard.rows = if (numeric) Layouts.numpad else Layouts.letters
         // Personal and debug builds: never private or password boxes, never before the first unlock (Q38).
         if (BuildConfig.TUNING && !password && !noLearning && !noSuggestFlag) {
-            val pkg = info.packageName; val num = numeric
-            worker.execute { FieldLog.add(this, pkg, cls, variation, num) } // prefs on disk: never the main thread
+            val num = numeric
+            worker.execute { FieldLog.add(this, info.packageName, cls, variation, num) } // prefs on disk: never the main thread
         }
         keyboard.enterKind = if (!useEnterAction) EnterKind.RETURN else when (enterAction) {
             EditorInfo.IME_ACTION_SEND -> EnterKind.SEND
@@ -539,7 +540,7 @@ class KeysService : InputMethodService(), KeyListener {
             val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned, cands)?.let { matchCase(typed, it) } else null
             // Lazily: only the first few are ever used, so the rest are never converted.
             val ranked = cands.asSequence().map { matchCase(typed, it.word) }.distinct()
-            val isKnown = known(typed)
+            val isKnown by lazy { known(typed) } // only when there's no fix to offer
             // A word Keyward doesn't know, offered as typed with "+ Save" (Q28): saved, it's never corrected again.
             val offerSave = learnNow && !isKnown && Words.isWord(typed) && userWords.canKeep
             val list = ArrayList<String>(3)
@@ -574,11 +575,7 @@ class KeysService : InputMethodService(), KeyListener {
         return d.autocorrect(original, known, boost, learned)?.let { matchCase(original, it) }
     }
 
-    private class UserLookup(val boost: (String) -> Int, val words: Collection<String>, val known: (String) -> Boolean) {
-        operator fun component1() = boost
-        operator fun component2() = words
-        operator fun component3() = known
-    }
+    private data class UserLookup(val boost: (String) -> Int, val words: Collection<String>, val known: (String) -> Boolean)
 
     /**
      * The user's words for one lookup: learned and saved where learning is on; saved only where it's off, so a saved word

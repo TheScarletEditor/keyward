@@ -142,6 +142,13 @@ class WordStore(
         return savedCache
     }
 
+    /** Every word in memory gone, cached lists included; [newSalt] for the list that follows (null: none). Under the memory lock. */
+    private fun wipeWords(newSalt: ByteArray?) {
+        counts.clear(); saved.clear(); pending.clear(); early.clear(); earlySaved.clear()
+        salt = newSalt
+        dropCaches()
+    }
+
     /** The cached lists hold words too: emptied whenever the words leave memory. Under the memory lock. */
     private fun dropCaches() {
         learnedCache = emptyList(); savedCache = emptyList(); learnedAt = -1L; savedAt = -1L
@@ -157,8 +164,7 @@ class WordStore(
     data class Entry(val word: String, val uses: Int, val saved: Boolean)
 
     /** Learned and saved words, alphabetically, for the Your words page. */
-    @Synchronized fun entries(): List<Entry> =
-        counts.filter { (w, n) -> listed(w, n) }.map { (w, n) -> Entry(w, n, w in saved) }.sortedBy { it.word }
+    @Synchronized fun entries(): List<Entry> = learned.map { w -> Entry(w, counts.getValue(w), w in saved) }.sortedBy { it.word }
 
     /** A list that couldn't be read was set aside (Settings says so, Q2). Touches the disk: not on the main thread. */
     val hasSetAside: Boolean get() = !setAsideFiles().isNullOrEmpty()
@@ -183,7 +189,7 @@ class WordStore(
     fun record(word: String) {
         if (refused) return
         val w = word.lowercase()
-        if (!learnable(w)) return
+        if (!Words.isWord(w)) return
         // Moved to the end: most recently used. The list may pass the cap until the next save trims it (off the typing path).
         if (state != State.LOADED) early[w] = ((early.remove(w) ?: 0) + 1).coerceAtMost(MAX_COUNT)
         else addUses(w, 1)
@@ -205,7 +211,7 @@ class WordStore(
     fun keep(word: String): Boolean {
         if (refused) return false
         val w = word.lowercase()
-        if (!learnable(w)) return false
+        if (!Words.isWord(w)) return false
         if (state != State.LOADED) earlySaved += w else keepLoaded(w)
         generation++
         dirty = true
@@ -222,22 +228,27 @@ class WordStore(
     @Synchronized
     fun remove(word: String) {
         val w = word.lowercase()
-        var had = counts.remove(w) != null
-        had = saved.remove(w) || had
-        had = early.remove(w) != null || had
-        had = earlySaved.remove(w) || had
-        if (state == State.LOADED) had = pending.remove(fingerprint(w)) != null || had
+        // `or`, not `||`: every copy goes, whichever held it.
+        val had = (counts.remove(w) != null) or saved.remove(w) or (early.remove(w) != null) or earlySaved.remove(w) or
+            (state == State.LOADED && pending.remove(fingerprint(w)) != null)
         if (!had) return
         generation++
         dirty = true
     }
 
+    /** A digest already fed this list's salt, made once per salt. Under the memory lock. */
+    private var salted: java.security.MessageDigest? = null
+    private var saltedWith: ByteArray? = null
+
     /** SHA-256 of this list's salt and the word, first 16 bytes, as hex. Under the memory lock, after the file is read. */
     private fun fingerprint(w: String): String {
-        val md = java.security.MessageDigest.getInstance("SHA-256")
-        md.update(salt ?: error("no salt before the list is read"))
-        val d = md.digest(w.toByteArray(Charsets.UTF_8))
-        return buildString(32) { for (i in 0 until 16) { val b = d[i].toInt() and 0xFF; append(HEX[b ushr 4]); append(HEX[b and 15]) } }
+        val s = salt ?: error("no salt before the list is read")
+        if (saltedWith !== s) {
+            salted = java.security.MessageDigest.getInstance("SHA-256").apply { update(s) }
+            saltedWith = s
+        }
+        val md = salted!!.clone() as java.security.MessageDigest
+        return hex(md.digest(w.toByteArray(Charsets.UTF_8)).copyOf(16))
     }
 
     /**
@@ -248,9 +259,7 @@ class WordStore(
     fun unload(): Boolean = synchronized(io) {
         synchronized(this) {
             if (state != State.LOADED && early.isEmpty() && earlySaved.isEmpty()) return false
-            counts.clear(); saved.clear(); pending.clear(); salt = null
-            early.clear(); earlySaved.clear()
-            dropCaches()
+            wipeWords(null)
             dirty = false
             generation++
             if (state == State.LOADED) state = State.NOT_LOADED
@@ -305,7 +314,7 @@ class WordStore(
         if (format < 0) { setAsideFile(); return }
         if (format > FORMAT) {
             synchronized(this) {
-                state = State.REFUSED_NEWER; counts.clear(); saved.clear(); pending.clear(); early.clear(); earlySaved.clear()
+                state = State.REFUSED_NEWER; wipeWords(null)
                 generation++; dirty = false
             }
             return
@@ -333,7 +342,7 @@ class WordStore(
             // The same rule as typing (A-D2): a word an older or newer build wrote with stray characters (a 0.2.1 build
             // reading this format keeps the format byte in the first word) is cleaned or skipped, never suggested.
             val w = if (i > 0) l.substring(0, i).filter { it >= ' ' }.lowercase() else ""
-            if (n != null && n > 0 && learnable(w)) {
+            if (n != null && n > 0 && Words.isWord(w)) {
                 fromFile[w] = ((fromFile[w] ?: 0) + n).coerceAtMost(MAX_COUNT)
                 if (mark) savedInFile += w
             }
@@ -357,7 +366,7 @@ class WordStore(
         counts.clear(); saved.clear(); pending.clear()
         salt = newSalt
         saved += savedWords
-        words.forEach { (w, n) -> if (n >= LEARNED || w in saved) counts[w] = n else addUses(w, n) }
+        words.forEach { (w, n) -> if (listed(w, n)) counts[w] = n else addUses(w, n) }
         pending.putAll(prints.filterKeys { it !in pending }) // a word made into a fingerprint above wins over a stale copy
         val typedEarly = LinkedHashMap(early)
         val savedEarly = HashSet(earlySaved)
@@ -377,17 +386,23 @@ class WordStore(
     fun save() = synchronized(io) {
         if (!unlocked()) return
         // Only a copy under the memory lock; the text and bytes are built after it's released.
-        val lines = ArrayList<String>()
         val gen: Long
+        val salt: ByteArray
+        val words: Map<String, Int>
+        val marked: Set<String>
+        val prints: Map<String, Int>
         synchronized(this) {
             if (!dirty || state != State.LOADED) return
             trim()
             gen = generation
-            // A to Z and fingerprint order: the file says nothing about when anything was typed (Q32).
-            lines += "~" + hex(salt ?: return)
-            counts.keys.sorted().forEach { w -> lines += if (w in saved) "$w\t${counts[w]}\ts" else "$w\t${counts[w]}" }
-            pending.keys.sorted().forEach { f -> lines += "#$f\t${pending[f]}" }
+            salt = this.salt ?: return
+            words = HashMap(counts); marked = HashSet(saved); prints = HashMap(pending)
         }
+        // A to Z and fingerprint order (sorted outside the lock): the file says nothing about when anything was typed (Q32).
+        val lines = ArrayList<String>(words.size + prints.size + 1)
+        lines += "~" + hex(salt)
+        words.keys.sorted().forEach { w -> lines += if (w in marked) "$w\t${words[w]}\ts" else "$w\t${words[w]}" }
+        prints.keys.sorted().forEach { f -> lines += "#$f\t${prints[f]}" }
         val body = java.io.ByteArrayOutputStream(lines.size * 16 + 1).apply {
             write(FORMAT)
             lines.forEachIndexed { i, l -> if (i > 0) write('\n'.code); write(l.toByteArray(Charsets.UTF_8)) }
@@ -450,12 +465,8 @@ class WordStore(
         val gone = aside != null && (listOf(tmp) + aside + file).all { !it.exists() || delete(it) }
         synchronized(this) {
             if (!gone) { if (state == State.LOADED) dirty = true; return false }
-            counts.clear()
-            saved.clear()
-            pending.clear(); early.clear(); earlySaved.clear()
             // A new salt: nothing from before can match a new list's fingerprints.
-            salt = newSalt()
-            dropCaches()
+            wipeWords(newSalt())
             generation++
             dirty = false
             state = State.LOADED
@@ -463,8 +474,6 @@ class WordStore(
         passingFailures = 0
         true
     }
-
-    private fun learnable(w: String) = Words.isWord(w)
 
     private fun setAsideFile() {
         // Never overwrite a list set aside earlier: the next free name.

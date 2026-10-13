@@ -388,9 +388,7 @@ private fun Promise(icon: String, text: String, p: ScarletPalette, font: FontFam
  */
 @Composable
 private fun MakerCard(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily) {
-    val shape = RoundedCornerShape(16.dp)
-    val card = Modifier.fillMaxWidth().clip(shape).background(Color(p.surface)).border(1.dp, Color(p.line), shape).padding(16.dp)
-        .semantics(mergeDescendants = true) {}
+    val card = Modifier.card(p).padding(16.dp).semantics(mergeDescendants = true) {}
     val raven = @Composable {
         Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(44.dp)) { drawCircle(Color(p.scarlet).copy(alpha = 0.14f)) }
@@ -404,12 +402,12 @@ private fun MakerCard(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily
 
 @Composable
 private fun MakerText(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("The Scarlet Coder", color = Color(p.text), fontSize = 18.sp, fontFamily = fraunces)
-            Text("thescarletcoder.com", color = Color(if (p.dark) 0xFFFF4D57.toInt() else 0xFFC40411.toInt()), fontSize = 14.sp,
-                fontFamily = inter, fontWeight = FontWeight.Medium)
-            Text("Honest tools · Fun games · No tricks", color = Color(p.soft), fontSize = 12.sp, fontFamily = inter)
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("The Scarlet Coder", color = Color(p.text), fontSize = 18.sp, fontFamily = fraunces)
+        Text("thescarletcoder.com", color = Color(if (p.dark) 0xFFFF4D57.toInt() else 0xFFC40411.toInt()), fontSize = 14.sp,
+            fontFamily = inter, fontWeight = FontWeight.Medium)
+        Text("Honest tools · Fun games · No tricks", color = Color(p.soft), fontSize = 12.sp, fontFamily = inter)
+    }
 }
 
 /** The raven with a soft scarlet halo, then the name in Fraunces. */
@@ -480,9 +478,8 @@ private object NoKeys : KeyListener {
 
 @Composable
 private fun Section(title: String, p: ScarletPalette, font: FontFamily, content: @Composable () -> Unit) {
-    val shape = RoundedCornerShape(16.dp)
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(Color(p.surface)).border(1.dp, Color(p.line), shape).padding(18.dp),
+        Modifier.card(p).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(title, color = Color(p.soft), fontSize = 15.sp, fontFamily = font, fontWeight = FontWeight.Medium)

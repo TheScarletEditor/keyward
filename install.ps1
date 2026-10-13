@@ -29,15 +29,14 @@ $alias = 'keywardpersonal'
 $package = 'com.thescarletcoder.keys'
 if (-not $env:JAVA_HOME) { $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr' }
 
+$connected = @(& $adb devices | Select-String '	device$' | ForEach-Object { ($_ -split '	')[0] })
 if (-not $Serial) {
-    $serials = @(& $adb devices | Select-String '	device$' | ForEach-Object { ($_ -split '	')[0] })
-    if ($serials.Count -eq 0) { Write-Host "No device connected. Plug it in, unlock it, allow USB debugging."; exit 1 }
-    if ($serials.Count -gt 1) { Write-Host "More than one device connected. Run again with -Serial (one or more of: $($serials -join ', '))."; exit 1 }
-    $Serial = @($serials[0])
+    if ($connected.Count -eq 0) { Write-Host "No device connected. Plug it in, unlock it, allow USB debugging."; exit 1 }
+    if ($connected.Count -gt 1) { Write-Host "More than one device connected. Run again with -Serial (one or more of: $($connected -join ', '))."; exit 1 }
+    $Serial = @($connected[0])
 }
 
 # Every device must be connected before the build and the password prompt.
-$connected = @(& $adb devices | Select-String '	device$' | ForEach-Object { ($_ -split '	')[0] })
 $missing = @($Serial | Where-Object { $connected -notcontains $_ })
 if ($missing.Count -gt 0) { Write-Host "Not connected: $($missing -join ', '). Plug in and unlock, then run again."; exit 1 }
 
@@ -66,8 +65,7 @@ if ($Debug) {
     $apk = ".\keys\build\personal-signed\keys-personal.apk"
     Write-Host "apksigner asks for the personal key password next."
     & $apksigner sign --ks $keystore --ks-key-alias $alias --out $apk $unsigned
-    $signed = $LASTEXITCODE -eq 0
-    if (-not $signed) { Write-Host "Signing failed. Wrong password?"; exit 1 }
+    if ($LASTEXITCODE -ne 0) { Write-Host "Signing failed. Wrong password?"; exit 1 }
     Remove-Item "$apk.idsig" -ErrorAction SilentlyContinue
 }
 

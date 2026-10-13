@@ -57,11 +57,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.core.graphics.PathParser
 import androidx.compose.ui.graphics.asComposePath
-import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -334,7 +334,7 @@ class SettingsActivity : ComponentActivity() {
                 // Settings doubles as the About page: what Keyward does to protect you, then who made it (the owner, Q46 to Q49).
                 Section("Your privacy", p, inter) {
                     Promise(KeyIcons.NO_NETWORK, "No internet access. Keyward can't send anything anywhere, and nothing you type is logged.", p, inter)
-                    Promise(KeyIcons.LOCK, "Your words are encrypted on this phone, with a key kept in its secure hardware that only works while the phone is unlocked.", p, inter)
+                    Promise(KeyIcons.LOCK, "Your words are encrypted on this phone, with a key kept in Android's protected key store that only works while the phone is unlocked.", p, inter)
                     Promise(KeyIcons.FINGERPRINT, "Words used only once or twice aren't stored as text, and nothing records the order you typed in.", p, inter)
                     Promise(KeyIcons.HIDDEN, "The keyboard is hidden from screenshots, recordings and screen sharing, and it never learns from passwords or private boxes.", p, inter)
                     Promise(KeyIcons.NONE, "No ads, no tracking, no account.", p, inter)
@@ -343,7 +343,7 @@ class SettingsActivity : ComponentActivity() {
                 Section("About", p, inter) {
                     Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Keyward", color = Color(p.text), fontSize = 22.sp, fontFamily = fraunces)
-                        Text("Version ${BuildConfig.VERSION_NAME}", color = Color(p.faint), fontSize = 13.sp, fontFamily = inter)
+                        Text("Version ${BuildConfig.VERSION_NAME}", color = Color(p.soft), fontSize = 13.sp, fontFamily = inter)
                         Text("A private keyboard for Android. Free and open source.", color = Color(p.soft), fontSize = 15.sp, fontFamily = inter)
                     }
                 }
@@ -372,11 +372,12 @@ private fun wordsCount(n: Int) = if (n == 1) "1 word" else "$n words"
 @Composable
 private fun Promise(icon: String, text: String, p: ScarletPalette, font: FontFamily) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Canvas(Modifier.padding(top = 2.dp).size(20.dp)) {
-            val s = size.width / KeyIcons.GRID
-            val path = PathParser.createPathFromPathData(icon).asComposePath().apply { transform(Matrix().apply { scale(s, s) }) }
-            drawPath(path, Color(p.teal), style = Stroke(width = KeyIcons.STROKE * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        }
+        // Parsed once per size, not on every draw.
+        Box(Modifier.padding(top = 2.dp).size(20.dp).drawWithCache {
+            val path = KeyIcons.path(icon, size.width).asComposePath()
+            val stroke = Stroke(width = KeyIcons.STROKE * size.width / KeyIcons.GRID, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            onDrawBehind { drawPath(path, Color(p.teal), style = stroke) }
+        })
         Text(text, color = Color(p.text), fontSize = 15.sp, fontFamily = font, modifier = Modifier.weight(1f))
     }
 }
@@ -388,22 +389,27 @@ private fun Promise(icon: String, text: String, p: ScarletPalette, font: FontFam
 @Composable
 private fun MakerCard(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily) {
     val shape = RoundedCornerShape(16.dp)
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(Color(p.surface)).border(1.dp, Color(p.line), shape).padding(16.dp)
-            .semantics(mergeDescendants = true) {},
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
+    val card = Modifier.fillMaxWidth().clip(shape).background(Color(p.surface)).border(1.dp, Color(p.line), shape).padding(16.dp)
+        .semantics(mergeDescendants = true) {}
+    val raven = @Composable {
         Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(44.dp)) { drawCircle(Color(p.scarlet).copy(alpha = 0.14f)) }
             Image(painterResource(R.mipmap.ic_launcher_foreground), contentDescription = null, modifier = Modifier.size(56.dp))
         }
+    }
+    // At large text sizes the raven goes above, so the address keeps its line instead of breaking mid-word.
+    if (LocalDensity.current.fontScale > 1.3f) Column(card, verticalArrangement = Arrangement.spacedBy(10.dp)) { raven(); MakerText(p, fraunces, inter) }
+    else Row(card, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) { raven(); MakerText(p, fraunces, inter) }
+}
+
+@Composable
+private fun MakerText(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("The Scarlet Coder", color = Color(p.text), fontSize = 18.sp, fontFamily = fraunces)
             Text("thescarletcoder.com", color = Color(if (p.dark) 0xFFFF4D57.toInt() else 0xFFC40411.toInt()), fontSize = 14.sp,
                 fontFamily = inter, fontWeight = FontWeight.Medium)
-            Text("Honest tools · Fun games · No tricks", color = Color(p.faint), fontSize = 12.sp, fontFamily = inter)
+            Text("Honest tools · Fun games · No tricks", color = Color(p.soft), fontSize = 12.sp, fontFamily = inter)
         }
-    }
 }
 
 /** The raven with a soft scarlet halo, then the name in Fraunces. */

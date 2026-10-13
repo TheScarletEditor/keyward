@@ -123,6 +123,10 @@ Smoke copy (release-optimized, `com.thescarletcoder.keys.smoke`) on scarlet_phon
 
 The owner asked to fold in what was waiting and rename to Keyward in this release (KEYS-DECISIONS Q16 to Q26; Q17 supersedes this report's Q1). Slice 6 built with its own slice check (review and audit agents; wording settled in Q23 to Q26). Stages 1 and 2 for slice 6 are those two agents. QA pass 4 in full: 51 unit tests, lintRelease no errors and no new warnings, release/personal/smoke built, release APK label "Keyward", 0.2.2 (5), permissions as 0.2.1, licenses in assets. Emulator (scarlet_phone, smoke copy, light and dark): Keyward header with the publisher line, "Ready. Keyward is on and in use.", KEYWARD on the space bar (preview and keyboard), preview words Your / Keyward / keyboard, licenses list; no crashes. Screenshots `phone-*-keyward-*.png`. Not checked on screen: the TalkBack accent actions (an IME's actions menu can't be scripted with adb); code-reviewed and unit-tested.
 
+## Smoke test, Part 2 (the owner's devices)
+
+Checklist `scarlet-hq/projects/scarlet-keys/0.2.2-DEVICE-TESTS.md` on both devices with 0.2.2+2c21cbe. The owner, 2026-10-12: "tests pass". The renamed build 0.2.2+aa2face is installed on both devices (Keyward still the selected keyboard); its one name line is the owner's to check.
+
 ## Ship
 
 | Step | Offered | Choice | Result |

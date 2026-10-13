@@ -237,16 +237,19 @@ class WordStore(
     }
 
     /**
-     * Drop the words from memory (the phone locked, Q33). Only when everything is on disk: unsaved words stay until
-     * the next unlock saves them. They're read again, decrypted, at the next field after unlock.
+     * Drop the words from memory (the screen went off or the phone locked, Q33). Always, even with changes not yet on
+     * disk: those are lost (the owner, Q39: privacy first). Call [save] first. Read again at the next field after unlock.
+     * False when there was nothing to drop.
      */
     fun unload(): Boolean = synchronized(io) {
         synchronized(this) {
-            if (state != State.LOADED || dirty) return false
+            if (state != State.LOADED && early.isEmpty() && earlySaved.isEmpty()) return false
             counts.clear(); saved.clear(); pending.clear(); salt = null
+            early.clear(); earlySaved.clear()
             dropCaches()
+            dirty = false
             generation++
-            state = State.NOT_LOADED
+            if (state == State.LOADED) state = State.NOT_LOADED
         }
         passingFailures = 0
         true

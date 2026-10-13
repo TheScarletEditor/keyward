@@ -15,8 +15,9 @@
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1 -NewKey          (once per device, when moving to the personal
 #                                                                            key: uninstalls first, which wipes its words)
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Debug -Serial emulator-5554   (a debug build, emulators only)
+#   ... -NoBuild   (sign and install the last build without running Gradle, e.g. while an emulator runs)
 
-param([string[]]$Serial, [switch]$Debug, [switch]$NewKey)
+param([string[]]$Serial, [switch]$Debug, [switch]$NewKey, [switch]$NoBuild)
 
 $ErrorActionPreference = 'Stop'
 # Through -File, "-Serial A,B" arrives as one string.
@@ -45,9 +46,11 @@ if ($Debug) {
     $apk = ".\keys\build\outputs\apk\debug\keys-debug.apk"
 } else {
     if (-not (Test-Path $keystore)) { Write-Host "Personal key not found at $keystore. Create it first (docs/KEYS-DECISIONS.md, Q36)."; exit 1 }
-    Write-Host "Building Keyward (personal)..."
-    cmd /c ".\gradlew.bat :keys:assemblePersonal --console=plain -q"
-    if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
+    if (-not $NoBuild) {
+        Write-Host "Building Keyward (personal)..."
+        cmd /c ".\gradlew.bat :keys:assemblePersonal --console=plain -q"
+        if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
+    }
     New-Item -ItemType Directory -Force .\keys\build\personal-signed | Out-Null
     $apk = ".\keys\build\personal-signed\keys-personal.apk"
     $secure = Read-Host "Personal key password" -AsSecureString

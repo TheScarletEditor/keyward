@@ -437,12 +437,13 @@ class WordStoreTest {
     @Test fun unloadDropsTheWordsUntilTheNextLoad() {
         val s = store(); s.load()
         repeat(3) { s.record("zorbex") }
-        assertFalse("unsaved words stay in memory", s.unload())
         s.save()
+        s.record("quillet") // not saved when the phone locks: dropped anyway (Q39)
         assertTrue(s.unload())
+        assertFalse(s.isKnown("quillet")); s.save() // nothing left to write
         assertFalse(s.isKnown("zorbex")); assertEquals(0, s.size)
         s.load()
-        assertTrue(s.isKnown("zorbex"))
+        assertTrue(s.isKnown("zorbex")); assertEquals(1, s.size)
     }
 
     @Test fun nothingIsReadOrWrittenWhileLocked() {

@@ -15,6 +15,7 @@ The owner, before the last build: "this will be the last build unless I find som
 | Q35 | Your words page exposure | "Also ask for your PIN" | Opening Your words asks for the device PIN, fingerprint or face (when the device has one); the page is FLAG_SECURE, blank in Recents, no content capture. | Emulator. |
 | Q36 | Signing of the owner's builds | "Also a new personal key" | install.ps1 refuses debuggable builds on the owner's devices; a personal key the owner creates and types the password for; one uninstall per device. | Owner. |
 | Q37 | Incognito and no-suggestion boxes | "Dictionary only there (Recommended)" | No-learning fields: dictionary only, never the user's words. NO_SUGGESTIONS fields: no suggestions. Refines S7-4. | Emulator. |
+| Q39 | Locking before Keyward saves | "Drop it anyway (Recommended)" | When the screen goes off or the phone locks, the list always leaves memory; words used in the last seconds before an instant lock may not be remembered. | WordStoreTest. |
 | Q38 | The personal build's recent-fields list | "Keep, but protect it" | Stored in credential-encrypted storage after unlock, skipping private and password fields; the old copy deleted. | Code. |
 
 ## 2026-10-12 (the owner, slice 7 check)

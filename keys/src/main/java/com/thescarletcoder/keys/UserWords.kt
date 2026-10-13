@@ -1,5 +1,6 @@
 package com.thescarletcoder.keys
 
+import android.app.KeyguardManager
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -28,7 +29,11 @@ class UserWords private constructor(context: Context) {
     private val store = WordStore(
         dirProvider = { context.noBackupFilesDir },
         sealer = KeystoreSealer,
-        unlocked = { context.getSystemService(UserManager::class.java).isUserUnlocked },
+        // Unlocked since boot and unlocked now: the key refuses while the phone is locked (Q33), so nothing is tried then.
+        unlocked = {
+            context.getSystemService(UserManager::class.java).isUserUnlocked &&
+                !context.getSystemService(KeyguardManager::class.java).isDeviceLocked
+        },
     )
 
     fun isKnown(word: String) = store.isKnown(word)
@@ -50,6 +55,8 @@ class UserWords private constructor(context: Context) {
      */
     fun loadInBackground() = io.execute { store.load() }
     fun saveInBackground() = io.execute { store.save() }
+    /** The phone locked or the screen went off: save, then drop the words from memory (Q33). */
+    fun unloadInBackground() = io.execute { store.save(); store.unload() }
 
     /** What Settings shows: the count, every word held (listed or not, for Forget all), and the notice, if any. */
     data class Status(val count: Int, val notice: WordStore.Notice, val held: Int = count)
@@ -104,17 +111,24 @@ class UserWords private constructor(context: Context) {
      * AES-GCM with a Keystore key; the 12-byte IV goes first. Keys come in generations ([ALIAS] is the first, then
      * "_g2", "_g3"...): sealing uses the newest, opening tries each from the newest down, so a file sealed before a
      * rotation still opens until the old key is retired (A-D1).
+     * From 0.2.2 keys are made with unlockedDeviceRequired (Q33): they refuse to work while the phone is locked.
+     * Those are "_l1", "_l2"... and rank above every older generation, so the first save moves a list onto one.
      */
     private object KeystoreSealer : WordStore.Sealer {
         private fun store() = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
         private fun generation(alias: String): Int = when {
             alias == ALIAS -> 1
-            alias.startsWith(GEN_PREFIX) -> alias.removePrefix(GEN_PREFIX).toIntOrNull() ?: 0
+            alias.startsWith(GEN_PREFIX) -> alias.removePrefix(GEN_PREFIX).toIntOrNull()?.takeIf { it < LOCKED } ?: 0
+            alias.startsWith(LOCKED_PREFIX) -> alias.removePrefix(LOCKED_PREFIX).toIntOrNull()?.takeIf { it in 1 until LOCKED }?.plus(LOCKED) ?: 0
             else -> 0
         }
 
-        private fun aliasFor(gen: Int) = if (gen == 1) ALIAS else "$GEN_PREFIX$gen"
+        private fun aliasFor(gen: Int) = when {
+            gen > LOCKED -> "$LOCKED_PREFIX${gen - LOCKED}"
+            gen == 1 -> ALIAS
+            else -> "$GEN_PREFIX$gen"
+        }
 
         /** Whether more than one key existed at the last listing (so saves skip a Keystore call when there's one). */
         @Volatile private var several = true
@@ -125,9 +139,11 @@ class UserWords private constructor(context: Context) {
 
         override fun hasOldKeys(): Boolean = several
 
+        override fun needsUpgrade(): Boolean = aliases(store()).firstOrNull()?.let { generation(it) <= LOCKED } ?: false
+
         override fun seal(plain: ByteArray): ByteArray {
             val ks = store()
-            val alias = aliases(ks).firstOrNull() ?: ALIAS
+            val alias = aliases(ks).firstOrNull() ?: aliasFor(LOCKED + 1)
             val c = Cipher.getInstance("AES/GCM/NoPadding")
             c.init(Cipher.ENCRYPT_MODE, key(ks, alias))
             return c.iv + c.doFinal(plain)
@@ -137,7 +153,7 @@ class UserWords private constructor(context: Context) {
             if (sealed.size < 12 + 16) throw WordStore.Unreadable()
             val ks = store()
             // No key at all: a new one, so the file (sealed with a lost key) is found unreadable and set aside.
-            val all = aliases(ks).ifEmpty { listOf(ALIAS.also { key(ks, it) }) }
+            val all = aliases(ks).ifEmpty { listOf(aliasFor(LOCKED + 1).also { key(ks, it) }) }
             var passing: Exception? = null
             for (alias in all) {
                 try {
@@ -159,7 +175,8 @@ class UserWords private constructor(context: Context) {
 
         override fun rotate(): Boolean {
             val ks = store()
-            val next = (aliases(ks).firstOrNull()?.let { generation(it) } ?: 0) + 1
+            // Every new key is the locked kind (Q33), so a rotation from an older one starts at the first of those.
+            val next = maxOf((aliases(ks).firstOrNull()?.let { generation(it) } ?: 0) + 1, LOCKED + 1)
             key(ks, aliasFor(next))
             return true
         }
@@ -178,6 +195,7 @@ class UserWords private constructor(context: Context) {
                     .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                     .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                     .setKeySize(256)
+                    .setUnlockedDeviceRequired(generation(alias) > LOCKED)
                     .build()
             )
             return g.generateKey()
@@ -189,6 +207,9 @@ class UserWords private constructor(context: Context) {
         /** The first key, as in 0.2.1. Later generations: keys_user_words_g2, _g3... */
         private const val ALIAS = "${ALIAS_PREFIX}v1"
         private const val GEN_PREFIX = "${ALIAS_PREFIX}g"
+        /** Keys that refuse to work while the phone is locked (Q33): "_l1", "_l2"..., ranked above every "_g" key. */
+        private const val LOCKED_PREFIX = "${ALIAS_PREFIX}l"
+        private const val LOCKED = 1_000_000
         @Volatile private var instance: UserWords? = null
 
         fun get(context: Context): UserWords = instance ?: synchronized(this) {

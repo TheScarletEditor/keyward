@@ -1,6 +1,12 @@
 package com.thescarletcoder.keys
 
+import android.app.KeyguardManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.view.WindowManager
 import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.os.SystemClock
@@ -47,6 +53,8 @@ class KeysService : InputMethodService(), KeyListener {
     private var suggestOn = false
     private var autocorrectOn = false
     private var learnOn = false
+    /** The user's saved (and, with [learnOn], learned) words may be suggested here: not while locked or in private fields (Q33, Q37). */
+    private var userWordsOn = false
     private var enterAction = EditorInfo.IME_ACTION_UNSPECIFIED
     private var useEnterAction = false
     private var numeric = false
@@ -91,9 +99,17 @@ class KeysService : InputMethodService(), KeyListener {
             if (BuildConfig.TUNING) Log.d(TAG, "dictionary loaded in ${SystemClock.elapsedRealtime() - t} ms (${dict?.size ?: 0} words)")
             userWords.loadInBackground()
         }
+        // The screen going off drops the words from memory; they're read again at the next field after unlock (Q33).
+        registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF), RECEIVER_NOT_EXPORTED)
+    }
+
+    private val screenOff = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) { userWords.unloadInBackground() }
     }
 
     override fun onCreateInputView(): View {
+        // No screenshots, screen recordings, screen sharing or AI screen reading of the keyboard, anywhere (Q34).
+        window.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         panel = KeyboardPanel(this, this) { word, save -> pick(word, save) }
         // The keyboard window reaches behind the navigation bar; keep the keys above it so Android's
         // hide-keyboard and switch-keyboard buttons never sit on top of ?123 and Enter.
@@ -159,14 +175,21 @@ class KeysService : InputMethodService(), KeyListener {
         )
         numeric = cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE || cls == InputType.TYPE_CLASS_DATETIME
 
-        suggestOn = prefs.suggestions && cls == InputType.TYPE_CLASS_TEXT && !password && !addressy
+        val noLearning = info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
+        // Locked: dictionary only, nothing learned, and the words leave memory (Q33).
+        val locked = getSystemService(KeyguardManager::class.java).isDeviceLocked
+        // A box that asks for no suggestions gets none (Q37).
+        suggestOn = prefs.suggestions && cls == InputType.TYPE_CLASS_TEXT && !password && !addressy && !noSuggestFlag
         // Keyward's own words search: never learned from or corrected (searching must never teach the keyboard).
         val ownNoLearn = info.packageName == packageName && info.privateImeOptions?.contains(Words.NO_LEARN) == true
-        autocorrectOn = suggestOn && prefs.autocorrect && !noSuggestFlag && !ownNoLearn
-        learnOn = suggestOn && prefs.learn && !noSuggestFlag && !ownNoLearn &&
-            info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING == 0
-        // Saved words count wherever there are suggestions, learning on or off (S7-4).
-        if (suggestOn) userWords.loadInBackground()
+        autocorrectOn = suggestOn && prefs.autocorrect && !ownNoLearn
+        // Saved words count wherever there are suggestions (S7-4), except incognito and no-learning boxes (Q37).
+        userWordsOn = suggestOn && !noLearning && !locked
+        learnOn = userWordsOn && prefs.learn && !ownNoLearn
+        if (userWordsOn) userWords.loadInBackground() else if (locked) userWords.unloadInBackground()
+        // Never a letter bubble or accent row in a password field: each character would show on screen (Q34).
+        keyboard.bubbleEnabled = prefs.bubble && !password
+        keyboard.accentsOn = !password
         soundOn = prefs.sound
         vibrateOn = prefs.vibrate
         applyLook()
@@ -177,7 +200,8 @@ class KeysService : InputMethodService(), KeyListener {
             enterAction != EditorInfo.IME_ACTION_NONE && enterAction != EditorInfo.IME_ACTION_UNSPECIFIED
 
         keyboard.rows = if (numeric) Layouts.numpad else Layouts.letters
-        if (BuildConfig.TUNING) FieldLog.add(this, info.packageName, cls, variation, numeric)
+        // Personal and debug builds: never private or password boxes, never before the first unlock (Q38).
+        if (BuildConfig.TUNING && !password && !noLearning && !noSuggestFlag) FieldLog.add(this, info.packageName, cls, variation, numeric)
         keyboard.enterKind = if (!useEnterAction) EnterKind.RETURN else when (enterAction) {
             EditorInfo.IME_ACTION_SEND -> EnterKind.SEND
             EditorInfo.IME_ACTION_GO -> EnterKind.GO
@@ -207,7 +231,6 @@ class KeysService : InputMethodService(), KeyListener {
         fieldKey = key
         strip.clear()
         // The strip is always there (the keyboard never changes height). Private fields say so.
-        val noLearning = info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
         strip.privateField = !numeric && !addressy && (password || noSuggestFlag || noLearning)
         keyboard.fieldHasText = info.initialSelEnd > 0
         updateAutoCaps()
@@ -480,7 +503,7 @@ class KeysService : InputMethodService(), KeyListener {
         val typed = composing.toString()
         val my = ++seq
         val learnNow = learnOn
-        val savedNow = suggestOn
+        val savedNow = userWordsOn
         val correctNow = autocorrectOn
         val keptNow = HashSet(kept)
         worker.execute {
@@ -522,7 +545,7 @@ class KeysService : InputMethodService(), KeyListener {
         if (!autocorrectOn || original.lowercase() in kept) return null
         if (pickFor == original) return autocorrectPick
         val d = dict ?: return null
-        val (boost, learned, known) = wordsFor(d, learnOn, suggestOn)
+        val (boost, learned, known) = wordsFor(d, learnOn, userWordsOn)
         return d.autocorrect(original, known, boost, learned)?.let { matchCase(original, it) }
     }
 
@@ -575,6 +598,7 @@ class KeysService : InputMethodService(), KeyListener {
         )) || (cls == InputType.TYPE_CLASS_NUMBER && variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD)
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(screenOff) }
         if (::prefs.isInitialized) prefs.unlisten(prefsChanged)
         if (::feedback.isInitialized) feedback.release()
         // On the worker, which finishes queued work after shutdown(): no file or Keystore work on the main thread (K5).

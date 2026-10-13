@@ -4,6 +4,8 @@
 
     <!-- NO INTERNET. A keyboard sees everything typed. The build fails if any dependency merges network access. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Your words asks for the phone's fingerprint, face or PIN first (Q35). No data leaves the system prompt. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <application
         android:allowBackup="false"

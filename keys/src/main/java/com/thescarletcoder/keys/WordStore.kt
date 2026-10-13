@@ -7,11 +7,17 @@ import java.io.File
  * words 1 to 7). Plain Kotlin, so the JVM tests run it with a fake [Sealer]; [UserWords] adds the Android Keystore.
  *
  * Files in [dir]: `words.enc` (the list), `words.tmp` (a save in progress), `words.unreadable` (a list that couldn't be
- * read, set aside and never overwritten, Q2; a second one becomes `words.unreadable-2`, and so on). Inside the encryption: one format byte, then "word<TAB>count" lines,
- * with "<TAB>s" after a word the user saved (format 2). Files from 0.2.1 have no format byte (format 0); format 1 has no saved mark.
+ * read, set aside and never overwritten, Q2; a second one becomes `words.unreadable-2`, and so on).
+ *
+ * Inside the encryption (format 3, Q32): one format byte, then "~salt" (hex), then the learned and saved words A to Z as
+ * "word<TAB>count", with "<TAB>s" after a word the user saved, then words used once or twice only as fingerprints,
+ * "#fingerprint<TAB>count", in fingerprint order. A fingerprint is a salted hash: typing the word again finds it, but
+ * the file can't be read back to the word, and nothing in the file says in what order anything was typed.
+ * Older formats are read and rewritten as format 3 at the next save: 0.2.1's has no format byte (format 0), format 1
+ * has no saved mark, format 2 kept every word as text in last-used order.
  *
  * Two kinds of word (Q29): learned, used [LEARNED] times or more; saved by the user ("+ Save", taking a fix back, or
- * the Your words page), kept until removed and never trimmed. Words used less are kept quietly, not counted or listed.
+ * the Your words page), kept until removed and never trimmed. Words used less are kept only as fingerprints.
  */
 class WordStore(
     dirProvider: () -> File,
@@ -42,6 +48,8 @@ class WordStore(
         fun retireOld() {}
         /** More than one key exists (a rotation in this run or an earlier one), so [retireOld] has work to do. */
         fun hasOldKeys(): Boolean = false
+        /** The newest key is an older kind (one that works while the phone is locked, Q33): rotate to a current one. */
+        fun needsUpgrade(): Boolean = false
     }
 
     /** The file can't be read, now or later: wrong or lost key, damaged or cut-short file. */
@@ -61,10 +69,20 @@ class WordStore(
      */
     private val io = Any()
 
-    /** In the order words were last used (oldest first), so trimming drops the oldest of the least used. */
+    /**
+     * Learned and saved words with their uses, in the order last used in this run (oldest first; the file keeps no
+     * order), so trimming drops the oldest of the least used.
+     */
     private val counts = LinkedHashMap<String, Int>()
     /** Words the user saved: always known, never trimmed (Q29). Every one is also in [counts]. */
     private val saved = HashSet<String>()
+    /** Words used once or twice, by fingerprint only (Q32), in the order last used in this run. */
+    private val pending = LinkedHashMap<String, Int>()
+    /** This list's salt for fingerprints; null until the file is read (and again after [unload]). */
+    private var salt: ByteArray? = null
+    /** Words typed or saved before the file could be read: memory only, merged in when it is (no salt before then). */
+    private val early = LinkedHashMap<String, Int>()
+    private val earlySaved = HashSet<String>()
     private var dirty = false
     /** Bumped on every change to [counts]: a save clears [dirty] only if nothing changed while it was writing. */
     private var generation = 0L
@@ -117,7 +135,7 @@ class WordStore(
     val count: Int get() = learned.size
 
     /** Every word held, listed or not: Forget all reaches these too (S7-1). */
-    val size: Int @Synchronized get() = counts.size
+    val size: Int @Synchronized get() = counts.size + pending.size + early.size
 
     /** One row of the Your words page. */
     data class Entry(val word: String, val uses: Int, val saved: Boolean)
@@ -151,9 +169,19 @@ class WordStore(
         val w = word.lowercase()
         if (!learnable(w)) return
         // Moved to the end: most recently used. The list may pass the cap until the next save trims it (off the typing path).
-        counts[w] = ((counts.remove(w) ?: 0) + 1).coerceAtMost(MAX_COUNT)
+        if (state != State.LOADED) early[w] = ((early.remove(w) ?: 0) + 1).coerceAtMost(MAX_COUNT)
+        else addUses(w, 1)
         generation++
         dirty = true
+    }
+
+    /** [n] more uses of [w]: a learned word counts on; a fingerprint becomes the word itself at [LEARNED] uses (Q32). */
+    private fun addUses(w: String, n: Int) {
+        val had = counts.remove(w)
+        if (had != null) { counts[w] = (had + n).coerceAtMost(MAX_COUNT); return }
+        val f = fingerprint(w)
+        val uses = ((pending.remove(f) ?: 0) + n).coerceAtMost(MAX_COUNT)
+        if (uses >= LEARNED) counts[w] = uses else pending[f] = uses
     }
 
     /** Save a word: known from now on and kept until removed (Q28, Q29). False when it can't be a word or nothing is kept. */
@@ -162,21 +190,53 @@ class WordStore(
         if (refused) return false
         val w = word.lowercase()
         if (!learnable(w)) return false
-        counts[w] = (counts.remove(w) ?: 0).coerceAtLeast(1)
-        saved += w
+        if (state != State.LOADED) earlySaved += w else keepLoaded(w)
         generation++
         dirty = true
         return true
+    }
+
+    private fun keepLoaded(w: String) {
+        val uses = pending.remove(fingerprint(w)) ?: 0
+        counts[w] = ((counts.remove(w) ?: 0) + uses).coerceIn(1, MAX_COUNT)
+        saved += w
     }
 
     /** Take a word off the list, saved or learned; it's learned again only by being used [LEARNED] more times. */
     @Synchronized
     fun remove(word: String) {
         val w = word.lowercase()
-        val had = counts.remove(w) != null
-        if (!saved.remove(w) && !had) return
+        var had = counts.remove(w) != null
+        had = saved.remove(w) || had
+        had = early.remove(w) != null || had
+        had = earlySaved.remove(w) || had
+        if (state == State.LOADED) had = pending.remove(fingerprint(w)) != null || had
+        if (!had) return
         generation++
         dirty = true
+    }
+
+    /** SHA-256 of this list's salt and the word, first 16 bytes, as hex. Under the memory lock, after the file is read. */
+    private fun fingerprint(w: String): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        md.update(salt ?: error("no salt before the list is read"))
+        val d = md.digest(w.toByteArray(Charsets.UTF_8))
+        return buildString(32) { for (i in 0 until 16) { val b = d[i].toInt() and 0xFF; append(HEX[b ushr 4]); append(HEX[b and 15]) } }
+    }
+
+    /**
+     * Drop the words from memory (the phone locked, Q33). Only when everything is on disk: unsaved words stay until
+     * the next unlock saves them. They're read again, decrypted, at the next field after unlock.
+     */
+    fun unload(): Boolean = synchronized(io) {
+        synchronized(this) {
+            if (state != State.LOADED || dirty) return false
+            counts.clear(); saved.clear(); pending.clear(); salt = null
+            generation++
+            state = State.NOT_LOADED
+        }
+        passingFailures = 0
+        true
     }
 
     /**
@@ -189,7 +249,7 @@ class WordStore(
         if (state != State.NOT_LOADED || !unlocked()) return
         // A leftover save in progress is never read (4).
         tmp.delete()
-        if (!file.exists()) { synchronized(this) { state = State.LOADED }; return }
+        if (!file.exists()) { startLoaded(emptyMap(), emptySet(), emptyMap(), newSalt(), rewrite = false); return }
         // Far larger than 5,000 words could ever be (about 200 KB): not ours, set aside unread (R7).
         if (file.length() > MAX_FILE_BYTES) { setAsideFile(); return }
         val body = try {
@@ -199,22 +259,36 @@ class WordStore(
             return
         } catch (e: Exception) {
             // Passing: stay NOT_LOADED, nothing saved, the next field retries; after a few in a row it isn't passing.
-            if (++passingFailures >= MAX_PASSING) setAsideFile()
+            // The phone locking mid-read isn't a failure of the file (the key refuses while locked, Q33).
+            if (unlocked() && ++passingFailures >= MAX_PASSING) setAsideFile()
             return
         }
         passingFailures = 0
         val format = formatOf(body)
         if (format < 0) { setAsideFile(); return }
         if (format > FORMAT) {
-            synchronized(this) { state = State.REFUSED_NEWER; counts.clear(); saved.clear(); generation++; dirty = false }
+            synchronized(this) {
+                state = State.REFUSED_NEWER; counts.clear(); saved.clear(); pending.clear(); early.clear(); earlySaved.clear()
+                generation++; dirty = false
+            }
             return
         }
         val skip = if (format == 0) 0 else 1
         val text = String(body, skip, body.size - skip, Charsets.UTF_8)
         val fromFile = LinkedHashMap<String, Int>()
         val savedInFile = HashSet<String>()
+        val prints = LinkedHashMap<String, Int>()
+        var fileSalt: ByteArray? = null
         text.lineSequence().forEach { line ->
-            // Format 2 may add "<TAB>s" after the count; before that the count was the last field.
+            if (format >= 3 && line.startsWith("~")) { fileSalt = unhex(line.substring(1)); return@forEach }
+            if (format >= 3 && line.startsWith("#")) {
+                val i = line.indexOf('\t')
+                val f = if (i == 33) line.substring(1, i) else ""
+                val n = if (i > 0) line.substring(i + 1).toIntOrNull() else null
+                if (n != null && n > 0 && unhex(f) != null) prints[f] = ((prints[f] ?: 0) + n).coerceAtMost(MAX_COUNT)
+                return@forEach
+            }
+            // Format 2 and later may add "<TAB>s" after the count; before that the count was the last field.
             val mark = format >= 2 && line.endsWith("\ts")
             val l = if (mark) line.substring(0, line.length - 2) else line
             val i = l.lastIndexOf('\t')
@@ -228,17 +302,39 @@ class WordStore(
             }
             // a bad count line is skipped, never read as 0 (3)
         }
-        synchronized(this) {
-            // The file's words first (they're older), then words typed before it could be read, on top.
-            val typed = LinkedHashMap(counts)
-            counts.clear()
-            counts.putAll(fromFile)
-            typed.forEach { (w, n) -> counts[w] = ((counts.remove(w) ?: 0) + n).coerceAtMost(MAX_COUNT) }
-            saved += savedInFile
-            trim()
-            generation++
-            state = State.LOADED
+        // A list without a salt (any older format, or a damaged line) gets a new one; fingerprints made with another salt
+        // could never match, so they go.
+        val keptSalt = fileSalt?.takeIf { it.size == SALT_BYTES }
+        if (keptSalt == null) prints.clear()
+        startLoaded(fromFile, savedInFile, prints, keptSalt ?: newSalt(), rewrite = format < FORMAT || keptSalt == null)
+        // The key itself refuses to work while the phone is locked (Q33); lists sealed with an older key move to one.
+        if (runCatching { sealer.needsUpgrade() }.getOrDefault(false) && runCatching { sealer.rotate() }.getOrDefault(false)) {
+            synchronized(this) { dirty = true }
         }
+    }
+
+    /**
+     * Start a loaded list from the file's words: learned and saved words as text, words used less as fingerprints
+     * (Q32; an older file's are turned into fingerprints here). Then the words typed before the file could be read,
+     * on top (they're newer). [rewrite]: the file isn't in this format, so the next save writes it again.
+     */
+    private fun startLoaded(
+        words: Map<String, Int>, savedWords: Set<String>, prints: Map<String, Int>, newSalt: ByteArray, rewrite: Boolean,
+    ) = synchronized(this) {
+        counts.clear(); saved.clear(); pending.clear()
+        salt = newSalt
+        saved += savedWords
+        words.forEach { (w, n) -> if (n >= LEARNED || w in saved) counts[w] = n else addUses(w, n) }
+        pending.putAll(prints.filterKeys { it !in pending }) // a word made into a fingerprint above wins over a stale copy
+        val typedEarly = LinkedHashMap(early)
+        val savedEarly = HashSet(earlySaved)
+        early.clear(); earlySaved.clear()
+        state = State.LOADED
+        typedEarly.forEach { (w, n) -> addUses(w, n) }
+        savedEarly.forEach { keepLoaded(it) }
+        trim()
+        generation++
+        if (rewrite || typedEarly.isNotEmpty() || savedEarly.isNotEmpty()) dirty = true
     }
 
     /**
@@ -248,28 +344,27 @@ class WordStore(
     fun save() = synchronized(io) {
         if (!unlocked()) return
         // Only a copy under the memory lock; the text and bytes are built after it's released.
-        val words: Array<String>
-        val uses: IntArray
-        val marks: BooleanArray
+        val lines = ArrayList<String>()
         val gen: Long
         synchronized(this) {
             if (!dirty || state != State.LOADED) return
             trim()
-            words = counts.keys.toTypedArray(); uses = counts.values.toIntArray(); gen = generation
-            marks = BooleanArray(words.size) { words[it] in saved }
+            gen = generation
+            // A to Z and fingerprint order: the file says nothing about when anything was typed (Q32).
+            lines += "~" + hex(salt ?: return)
+            counts.keys.sorted().forEach { w -> lines += if (w in saved) "$w\t${counts[w]}\ts" else "$w\t${counts[w]}" }
+            pending.keys.sorted().forEach { f -> lines += "#$f\t${pending[f]}" }
         }
-        val body = java.io.ByteArrayOutputStream(words.size * 12 + 1).apply {
+        val body = java.io.ByteArrayOutputStream(lines.size * 16 + 1).apply {
             write(FORMAT)
-            words.forEachIndexed { i, w ->
-                if (i > 0) write('\n'.code)
-                write((if (marks[i]) "$w\t${uses[i]}\ts" else "$w\t${uses[i]}").toByteArray(Charsets.UTF_8))
-            }
+            lines.forEachIndexed { i, l -> if (i > 0) write('\n'.code); write(l.toByteArray(Charsets.UTF_8)) }
         }.toByteArray()
         when (write(body)) {
             Write.OK -> { saved(gen); return }
             // The seal worked, so the key is fine: a full disk or a failed rename says nothing about it (R6).
             Write.DISK_FAILED -> { saveFailures = 0; return }
-            Write.SEAL_FAILED -> {}
+            // The phone locked while saving: the key refuses until unlock (Q33), which says nothing about the key.
+            Write.SEAL_FAILED -> if (!unlocked()) return
         }
         // A key that fails to seal every time is broken. Safe rotation (A-D1, Q2): a new key next to the old one, the
         // list sealed with it, and the old key deleted only once that file is in place. Reading tries every key, so a
@@ -315,6 +410,9 @@ class WordStore(
             if (!gone) { if (state == State.LOADED) dirty = true; return false }
             counts.clear()
             saved.clear()
+            pending.clear(); early.clear(); earlySaved.clear()
+            // A new salt: nothing from before can match a new list's fingerprints.
+            salt = newSalt()
             generation++
             dirty = false
             state = State.LOADED
@@ -331,7 +429,8 @@ class WordStore(
             .first { !it.exists() }
         // If it can't be moved, nothing is learned or saved this run, so the file is never written over.
         val moved = move(file, target)
-        synchronized(this) { state = if (moved) State.LOADED else State.REFUSED }
+        if (moved) startLoaded(emptyMap(), emptySet(), emptyMap(), newSalt(), rewrite = false)
+        else synchronized(this) { state = State.REFUSED }
     }
 
     /**
@@ -340,6 +439,12 @@ class WordStore(
      * lowest count and a removal in last-used order, no sort.
      */
     private fun trim() {
+        // Fingerprints first: every one is used less than any learned word.
+        while (counts.size + pending.size > CAP && pending.isNotEmpty()) {
+            val low = pending.values.min()
+            val iter = pending.entries.iterator()
+            while (counts.size + pending.size > CAP && iter.hasNext()) if (iter.next().value == low) iter.remove()
+        }
         while (counts.size > CAP) {
             val low = counts.entries.filter { it.key !in saved }.minOfOrNull { it.value } ?: return
             val iter = counts.entries.iterator()
@@ -349,8 +454,18 @@ class WordStore(
     }
 
     companion object {
-        /** The format this build writes. 0 was 0.2.1's (no format byte); 1 had no saved mark. */
-        const val FORMAT = 2
+        /** The format this build writes. 0 was 0.2.1's (no format byte); 1 had no saved mark; 2 kept every word as text. */
+        const val FORMAT = 3
+        private const val SALT_BYTES = 16
+        private const val HEX = "0123456789abcdef"
+        private val random = java.security.SecureRandom()
+        private fun newSalt() = ByteArray(SALT_BYTES).also(random::nextBytes)
+        private fun hex(b: ByteArray) = buildString(b.size * 2) { b.forEach { val v = it.toInt() and 0xFF; append(HEX[v ushr 4]); append(HEX[v and 15]) } }
+        /** Null unless [s] is lowercase hex of whole bytes. */
+        private fun unhex(s: String): ByteArray? {
+            if (s.isEmpty() || s.length % 2 != 0 || s.any { it !in HEX }) return null
+            return ByteArray(s.length / 2) { ((HEX.indexOf(s[2 * it]) shl 4) or HEX.indexOf(s[2 * it + 1])).toByte() }
+        }
         /** Uses before a word is learned (Q29; was 2). */
         const val LEARNED = 3
         private const val MAX_BOOST = 80

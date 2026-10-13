@@ -1,6 +1,12 @@
 package com.thescarletcoder.keys
 
+import android.app.KeyguardManager
 import android.content.Intent
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
+import android.os.CancellationSignal
+import android.view.View
+import android.view.WindowManager
 import android.graphics.Color.TRANSPARENT
 import android.os.Bundle
 import android.os.StrictMode
@@ -38,6 +44,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -73,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -118,6 +126,28 @@ class SettingsActivity : ComponentActivity() {
         @Volatile var warm: Pair<KeysPrefs, List<String>>? = null
     }
 
+    /** Your words asks for the phone's PIN, fingerprint or face first, when the phone has one (Q35). */
+    private fun confirmItsYou(open: () -> Unit) {
+        if (!getSystemService(KeyguardManager::class.java).isDeviceSecure) { open(); return }
+        BiometricPrompt.Builder(this)
+            .setTitle("Your words")
+            .setSubtitle("Confirm it's you to see your words.")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+            .build()
+            .authenticate(CancellationSignal(), mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = open()
+            })
+    }
+
+    private fun hideFromCapture(hide: Boolean) {
+        if (hide) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        setRecentsScreenshotEnabled(!hide)
+        window.decorView.importantForContentCapture =
+            if (hide) View.IMPORTANT_FOR_CONTENT_CAPTURE_NO_EXCLUDE_DESCENDANTS else View.IMPORTANT_FOR_CONTENT_CAPTURE_AUTO
+        window.decorView.importantForAutofill =
+            if (hide) View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS else View.IMPORTANT_FOR_AUTOFILL_AUTO
+    }
+
     private fun show(prefs: KeysPrefs, fields: List<String>) {
         // Learned words are read off the main thread below (K5).
         val words = UserWords.get(this)
@@ -151,6 +181,20 @@ class SettingsActivity : ComponentActivity() {
             val reading = Licenses.parts.getOrNull(readingIndex)
             BackHandler(enabled = tuning) { tuning = false }
             BackHandler(enabled = wordsPage) { wordsPage = false }
+            // Your words is shut whenever Keyward leaves the screen (not on a rotation), so it's never restored, shown
+            // in Recents or reopened without asking again (Q35).
+            val owner = LocalLifecycleOwner.current
+            DisposableEffect(owner) {
+                val watch = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP && !isChangingConfigurations) wordsPage = false }
+                owner.lifecycle.addObserver(watch)
+                onDispose { owner.lifecycle.removeObserver(watch) }
+            }
+            // While it's open: no screenshots or recordings, blank in Recents, nothing for content capture or autofill
+            // (which on-device assistants read) (Q35).
+            DisposableEffect(wordsPage) {
+                if (wordsPage) hideFromCapture(true)
+                onDispose { if (wordsPage) hideFromCapture(false) }
+            }
             BackHandler(enabled = licenses && reading == null) { licenses = false }
             BackHandler(enabled = reading != null) { readingIndex = -1 }
             val scroll = rememberScrollState()
@@ -236,7 +280,7 @@ class SettingsActivity : ComponentActivity() {
                     noticeText(status?.notice)?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = inter) }
                     val count = status?.count
                     NavCard("Your words", if (count == null) "Search, remove or add." else "${wordsCount(count)}. Search, remove or add.", "Open", p, inter,
-                        role = Role.Button, clickLabel = "Open your words") { mainScroll = scroll.value; wordsPage = true }
+                        role = Role.Button, clickLabel = "Open your words") { confirmItsYou { mainScroll = scroll.value; wordsPage = true } }
                 }
 
                 Section("Feel", p, inter) {

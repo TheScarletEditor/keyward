@@ -37,11 +37,11 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
-        // The owner's own devices: release-optimized (R8, not debuggable) but signed with this laptop's debug key,
-        // so it installs over debug installs and keeps learned words. Never install `release` on those devices.
+        // The owner's own devices: release-optimized (R8, not debuggable), built unsigned and signed by install.ps1 with
+        // the owner's personal key (Q36), whose password the owner types. Never install `release` on those devices.
         create("personal") {
             initWith(getByName("release"))
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = null
             matchingFallbacks += listOf("release")
             versionNameSuffix = "+$gitRev"
             buildConfigField("boolean", "TUNING", "true")
@@ -100,7 +100,8 @@ tasks.matching { it.name.matches(Regex("process[A-Za-z]+MainManifest")) }.config
             val ns = "http://schemas.android.com/apk/res/android"
             fun names(tag: String) = doc.getElementsByTagName(tag).let { l -> (0 until l.length).map { (l.item(it) as org.w3c.dom.Element).getAttributeNS(ns, "name") } }
             val permissions = names("uses-permission").filterNot {
-                it == "android.permission.VIBRATE" || it.endsWith(".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION")
+                it == "android.permission.VIBRATE" || it == "android.permission.USE_BIOMETRIC" ||
+                    it.endsWith(".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION")
             }
             val allowed = setOf(
                 "com.thescarletcoder.keys.KeysService", "com.thescarletcoder.keys.SettingsActivity",

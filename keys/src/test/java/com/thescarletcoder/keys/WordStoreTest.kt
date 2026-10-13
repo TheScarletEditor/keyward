@@ -25,6 +25,8 @@ class WordStoreTest {
         override fun rotate(): Boolean { rotations++; keys += keys.last() + 1; brokenKey = false; return true }
         override fun retireOld() { val k = keys.last(); keys.clear(); keys += k }
         override fun hasOldKeys() = keys.size > 1
+        var upgrade = false // the newest key is an older kind
+        override fun needsUpgrade() = upgrade && keys.size == 1
         override fun seal(plain: ByteArray): ByteArray {
             if (brokenKey) throw IllegalStateException("key unusable")
             return byteArrayOf(MARK, keys.last().toByte()) + plain.map { (it.toInt() xor 0x5A).toByte() }
@@ -400,6 +402,83 @@ class WordStoreTest {
         assertTrue(s.clear())
         assertFalse(s.isKnown("zorvex"))
         val t = store(); t.load(); assertEquals(0, t.size)
+    }
+
+    private fun body() = String(sealer.open(enc.readBytes()), 1, sealer.open(enc.readBytes()).size - 1, Charsets.UTF_8)
+
+    @Test fun format3KeepsNoReadableOneOffWordsAndNoOrder() {
+        val s = store(); s.load()
+        s.record("seedword"); s.record("seedword"); repeat(3) { s.record("zorbex") }; repeat(3) { s.record("apple") }; s.keep("quillet")
+        s.save()
+        val text = body()
+        assertFalse("a word used twice is only a fingerprint", text.contains("seedword"))
+        val words = text.lines().filter { !it.startsWith("~") && !it.startsWith("#") }.map { it.substringBefore('\t') }
+        assertEquals("A to Z, not the order typed", listOf("apple", "quillet", "zorbex"), words)
+        assertEquals(1, text.lines().count { it.startsWith("#") })
+        // The fingerprint still finds the word: one more use learns it.
+        val t = store(); t.load(); t.record("seedword")
+        assertTrue(t.isKnown("seedword"))
+    }
+
+    @Test fun anOlderFileIsRewrittenWithFingerprints() {
+        writeList(byteArrayOf(2) + "quillet\t2\nzorbex\t3\nzorvex\t1\ts".toByteArray())
+        val s = store(); s.load()
+        s.save() // nothing typed, but the file is rewritten in the new format
+        assertEquals(WordStore.FORMAT, WordStore.formatOf(sealer.open(enc.readBytes())))
+        val text = body()
+        assertFalse(text.contains("quillet")); assertTrue(text.contains("zorbex")); assertTrue(text.contains("zorvex\t1\ts"))
+        val t = store(); t.load(); t.record("quillet")
+        assertTrue("2 old uses plus 1", t.isKnown("quillet")); assertTrue(t.isSaved("zorvex"))
+    }
+
+    @Test fun unloadDropsTheWordsUntilTheNextLoad() {
+        val s = store(); s.load()
+        repeat(3) { s.record("zorbex") }
+        assertFalse("unsaved words stay in memory", s.unload())
+        s.save()
+        assertTrue(s.unload())
+        assertFalse(s.isKnown("zorbex")); assertEquals(0, s.size)
+        s.load()
+        assertTrue(s.isKnown("zorbex"))
+    }
+
+    @Test fun nothingIsReadOrWrittenWhileLocked() {
+        var unlocked = true
+        val s = WordStore(dir, sealer, unlocked = { unlocked })
+        s.load(); repeat(3) { s.record("zorbex") }; s.save()
+        val before = enc.readBytes()
+        s.save(); assertTrue(s.unload())
+        unlocked = false
+        s.load(); assertFalse("locked: not read", s.isKnown("zorbex"))
+        s.record("quillet"); s.save()
+        assertArrayEquals("locked: nothing written", before, enc.readBytes())
+        unlocked = true
+        s.load(); assertTrue(s.isKnown("zorbex"))
+    }
+
+    @Test fun anOlderKeyIsReplacedAtTheFirstSave() {
+        val s = store(); s.load(); repeat(3) { s.record("zorbex") }; s.save()
+        sealer.upgrade = true
+        val t = store(); t.load()
+        assertEquals(1, sealer.rotations)
+        t.save()
+        assertEquals("the old key is gone once the list is sealed with the new one", 1, sealer.keys.size)
+        sealer.upgrade = false
+        val u = store(); u.load(); assertTrue(u.isKnown("zorbex"))
+    }
+
+    @Test fun wordsTypedBeforeTheLoadAreFingerprintedToo() {
+        writeList(byteArrayOf(3) + "~00112233445566778899aabbccddeeff\nzorbex\t3".toByteArray())
+        val s = store(); s.record("seedword"); s.keep("quillet"); s.load(); s.save()
+        val text = body()
+        assertFalse(text.contains("seedword")); assertTrue(text.contains("quillet\t1\ts")); assertTrue(text.startsWith("~00112233445566778899aabbccddeeff"))
+    }
+
+    @Test fun forgetStartsANewSalt() {
+        val s = store(); s.load(); s.record("seedword"); s.save()
+        val salt = body().lines().first()
+        assertTrue(s.clear()); s.record("seedword"); s.save()
+        assertFalse("a new list never reuses the old salt", body().lines().first() == salt)
     }
 
     /** Letters-only made-up words: a, b, ..., z, ba, bb, ... */

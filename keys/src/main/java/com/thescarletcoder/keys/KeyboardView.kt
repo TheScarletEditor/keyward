@@ -76,6 +76,10 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
         set(v) { field = v; invalidate() }
     var popups: KeyPopups? = null
     var bubbleEnabled = false
+    /** False in password fields: no accent row on a long press, and no accent actions for TalkBack (Q34). */
+    var accentsOn = true
+        set(v) { if (field != v) { field = v; a11y.invalidateRoot() } }
+    private fun accentsAt(i: Int): String? = if (accentsOn) accentsFor.getOrNull(i) else null
     /** Room above this view's top (inside the keyboard window) that the accent row may use, in px. */
     var popupRoom = 0f
     /** Android's animator duration scale, refreshed by the service when a field starts. 0 = remove animations. */
@@ -234,7 +238,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
             node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
             if (k.alt != null || k.type == KeyType.SPACE || k.type == KeyType.SHIFT) node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
             // The accent row isn't reachable by exploring, so each accent is its own action on the key (KB-5).
-            accentsFor[id]?.forEachIndexed { i, ch ->
+            accentsAt(id)?.forEachIndexed { i, ch ->
                 if (i < ACCENT_ACTIONS.size) node.addAction(
                     AccessibilityNodeInfoCompat.AccessibilityActionCompat(ACCENT_ACTIONS[i], KeyLabels.accent(ch, shift)),
                 )
@@ -247,7 +251,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
             return when (action) {
                 AccessibilityNodeInfoCompat.ACTION_CLICK -> { listener.onPressFeedback(k); listener.onKey(k); true }
                 in ACCENT_ACTIONS -> {
-                    val ch = accentsFor[id]?.getOrNull(ACCENT_ACTIONS.indexOf(action)) ?: return false
+                    val ch = accentsAt(id)?.getOrNull(ACCENT_ACTIONS.indexOf(action)) ?: return false
                     listener.onAlt(KeyLabels.accent(ch, shift)); true
                 }
                 AccessibilityNodeInfoCompat.ACTION_LONG_CLICK -> when {
@@ -466,7 +470,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
                 repeating = true
                 handler.postDelayed(repeatRunnable, 400)
             }
-            key.alt != null || accentsFor[i] != null || key.type == KeyType.SPACE -> {
+            key.alt != null || accentsAt(i) != null || key.type == KeyType.SPACE -> {
                 lpPointer = pointer; lpIndex = i
                 handler.postDelayed(longPressRunnable, if (key.type == KeyType.SPACE) 600L else Tunables.int(KeysTuning.LONGPRESS_MS).toLong())
             }
@@ -478,7 +482,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
         if (p < 0 || i < 0 || i >= n || pointerKey[p] != i) return
         consumed[p] = true
         val key = keyOf[i]
-        val accents = accentsFor[i]
+        val accents = accentsAt(i)
         when {
             key.type == KeyType.SPACE -> listener.onSpaceLongPress()
             accents != null -> openAccents(p, i, key.alt, accents)

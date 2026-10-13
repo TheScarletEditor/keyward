@@ -19,6 +19,8 @@
 param([string[]]$Serial, [switch]$Debug, [switch]$NewKey)
 
 $ErrorActionPreference = 'Stop'
+# Through -File, "-Serial A,B" arrives as one string.
+$Serial = @($Serial | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 Set-Location $PSScriptRoot
 $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 $apksigner = "$env:LOCALAPPDATA\Android\Sdk\build-tools\37.0.0\apksigner.bat"
@@ -66,7 +68,10 @@ foreach ($s in $Serial) {
         & $adb -s $s uninstall $package | Out-Null
     }
     Write-Host "$s : installing..."
+    # adb reports install failures on stderr; read them instead of stopping on them.
+    $ErrorActionPreference = 'Continue'
     $out = & $adb -s $s install -r $apk 2>&1 | Out-String
+    $ErrorActionPreference = 'Stop'
     Write-Host $out.Trim()
     if ($out -match 'INSTALL_FAILED_UPDATE_INCOMPATIBLE') {
         Write-Host "$s : the installed Keyward is signed with another key. Run again with -NewKey to replace it (wipes its words)."; exit 1

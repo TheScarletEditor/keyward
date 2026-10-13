@@ -89,7 +89,9 @@ dependencies {
 // so nothing new can reach other apps or be reached by them without the owner seeing it first.
 tasks.matching { it.name.matches(Regex("process[A-Za-z]+MainManifest")) }.configureEach {
     doLast {
-        outputs.files.asFileTree.matching { include("**/AndroidManifest.xml") }.forEach { f ->
+        val manifests = outputs.files.asFileTree.matching { include("**/AndroidManifest.xml") }.files
+        if (manifests.isEmpty()) throw GradleException("No merged manifest found to check in ${outputs.files.files}. Stop and flag it to the owner.")
+        manifests.forEach { f ->
             val text = f.readText()
             val banned = listOf("android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE")
                 .filter { text.contains("\"$it\"") }
@@ -99,9 +101,10 @@ tasks.matching { it.name.matches(Regex("process[A-Za-z]+MainManifest")) }.config
             val doc = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }.newDocumentBuilder().parse(f)
             val ns = "http://schemas.android.com/apk/res/android"
             fun names(tag: String) = doc.getElementsByTagName(tag).let { l -> (0 until l.length).map { (l.item(it) as org.w3c.dom.Element).getAttributeNS(ns, "name") } }
-            val permissions = names("uses-permission").filterNot {
+            val appId = doc.documentElement.getAttribute("package")
+            val permissions = (names("uses-permission") + names("uses-permission-sdk-23") + names("permission")).filterNot {
                 it == "android.permission.VIBRATE" || it == "android.permission.USE_BIOMETRIC" ||
-                    it.endsWith(".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION")
+                    it == "$appId.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
             }
             val allowed = setOf(
                 "com.thescarletcoder.keys.KeysService", "com.thescarletcoder.keys.SettingsActivity",

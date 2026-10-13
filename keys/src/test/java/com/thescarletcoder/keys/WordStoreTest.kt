@@ -26,12 +26,15 @@ class WordStoreTest {
         override fun retireOld() { val k = keys.last(); keys.clear(); keys += k }
         override fun hasOldKeys() = keys.size > 1
         var upgrade = false // the newest key is an older kind
+        var lockedNow = false // the key refuses: the phone counts as locked to it
         override fun needsUpgrade() = upgrade && keys.size == 1
         override fun seal(plain: ByteArray): ByteArray {
+            if (lockedNow) throw WordStore.Locked()
             if (brokenKey) throw IllegalStateException("key unusable")
             return byteArrayOf(MARK, keys.last().toByte()) + plain.map { (it.toInt() xor 0x5A).toByte() }
         }
         override fun open(sealed: ByteArray): ByteArray {
+            if (lockedNow) throw WordStore.Locked()
             if (passingErrors > 0) { passingErrors--; throw IllegalStateException("key store busy") }
             if (sealed.size < 2 || sealed[0] != MARK || sealed[1].toInt() !in keys) throw WordStore.Unreadable()
             return sealed.drop(2).map { (it.toInt() xor 0x5A).toByte() }.toByteArray()
@@ -479,6 +482,35 @@ class WordStoreTest {
         val salt = body().lines().first()
         assertTrue(s.clear()); s.record("seedword"); s.save()
         assertFalse("a new list never reuses the old salt", body().lines().first() == salt)
+    }
+
+    @Test fun aKeyRefusingWhileLockedNeverSetsTheListAsideOrReplacesTheKey() {
+        val s = store(); s.load(); repeat(3) { s.record("zorbex") }; s.save()
+        assertTrue(s.unload())
+        sealer.lockedNow = true
+        repeat(WordStore.MAX_PASSING + 2) { s.load() }
+        assertFalse(s.hasSetAside); assertFalse(s.isLoaded)
+        sealer.lockedNow = false
+        s.load(); repeat(3) { s.record("quillet") }
+        sealer.lockedNow = true
+        repeat(WordStore.MAX_PASSING + 2) { s.save() }
+        assertEquals("never rotated for a locked refusal", 0, sealer.rotations)
+        sealer.lockedNow = false
+        s.save()
+        val t = store(); t.load(); assertTrue(t.isKnown("zorbex")); assertTrue(t.isKnown("quillet"))
+    }
+
+    @Test fun anOlderKeyIsReplacedEvenWithNoFileYet() {
+        sealer.upgrade = true
+        val s = store(); s.load()
+        assertEquals(1, sealer.rotations)
+    }
+
+    @Test fun unloadEmptiesTheCachedLists() {
+        val s = store(); s.load(); repeat(3) { s.record("zorbex") }; s.keep("quillet")
+        assertEquals(2, s.learned.size); assertEquals(1, s.savedWords.size)
+        s.save(); assertTrue(s.unload())
+        assertTrue(s.learned.isEmpty()); assertTrue(s.savedWords.isEmpty())
     }
 
     /** Letters-only made-up words: a, b, ..., z, ba, bb, ... */

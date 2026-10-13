@@ -144,9 +144,14 @@ class UserWords private constructor(context: Context) {
         override fun seal(plain: ByteArray): ByteArray {
             val ks = store()
             val alias = aliases(ks).firstOrNull() ?: aliasFor(LOCKED + 1)
-            val c = Cipher.getInstance("AES/GCM/NoPadding")
-            c.init(Cipher.ENCRYPT_MODE, key(ks, alias))
-            return c.iv + c.doFinal(plain)
+            return try {
+                val c = Cipher.getInstance("AES/GCM/NoPadding")
+                c.init(Cipher.ENCRYPT_MODE, key(ks, alias))
+                c.iv + c.doFinal(plain)
+            } catch (e: Exception) {
+                // A locked-only key refusing is the phone being locked to it, not a broken key (Q33).
+                if (generation(alias) > LOCKED) throw WordStore.Locked(e) else throw e
+            }
         }
 
         override fun open(sealed: ByteArray): ByteArray {
@@ -155,6 +160,7 @@ class UserWords private constructor(context: Context) {
             // No key at all: a new one, so the file (sealed with a lost key) is found unreadable and set aside.
             val all = aliases(ks).ifEmpty { listOf(aliasFor(LOCKED + 1).also { key(ks, it) }) }
             var passing: Exception? = null
+            var locked: Exception? = null
             for (alias in all) {
                 try {
                     val c = Cipher.getInstance("AES/GCM/NoPadding")
@@ -167,9 +173,11 @@ class UserWords private constructor(context: Context) {
                 } catch (e: Exception) {
                     // Keystore errors (busy, not ready, even a damaged key) all look alike here: passing, and
                     // WordStore gives up after a few in a row (Q13).
-                    if (passing == null) passing = e
+                    // A locked-only key refusing is the phone being locked to it, not a fault (Q33).
+                    if (generation(alias) > LOCKED) { if (locked == null) locked = e } else if (passing == null) passing = e
                 }
             }
+            locked?.let { throw WordStore.Locked(it) }
             throw passing ?: WordStore.Unreadable()
         }
 

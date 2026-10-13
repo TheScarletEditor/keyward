@@ -55,6 +55,13 @@ class WordStore(
     /** The file can't be read, now or later: wrong or lost key, damaged or cut-short file. */
     class Unreadable(cause: Throwable? = null) : Exception(cause)
 
+    /**
+     * The key refused because the phone counts as locked to it (Q33), even if Android said it was unlocked (Smart Lock,
+     * a weak face unlock): never a sign of a bad file or a broken key, so never counted towards setting the list aside
+     * or replacing the key.
+     */
+    class Locked(cause: Throwable? = null) : Exception(cause)
+
     /** REFUSED_NEWER: a list from a newer format; REFUSED: an unreadable list that couldn't be moved aside. */
     private enum class State { NOT_LOADED, LOADED, REFUSED, REFUSED_NEWER }
 
@@ -129,6 +136,11 @@ class WordStore(
     val savedWords: Collection<String> @Synchronized get() {
         if (savedAt != generation) { savedCache = saved.toList(); savedAt = generation }
         return savedCache
+    }
+
+    /** The cached lists hold words too: emptied whenever the words leave memory. Under the memory lock. */
+    private fun dropCaches() {
+        learnedCache = emptyList(); savedCache = emptyList(); learnedAt = -1L; savedAt = -1L
     }
 
     /** Learned plus saved: what Settings counts (words used once or twice aren't counted, Q29). */
@@ -232,6 +244,7 @@ class WordStore(
         synchronized(this) {
             if (state != State.LOADED || dirty) return false
             counts.clear(); saved.clear(); pending.clear(); salt = null
+            dropCaches()
             generation++
             state = State.NOT_LOADED
         }
@@ -245,8 +258,19 @@ class WordStore(
      * nothing is learned or saved this run (7). Words recorded before the file could be read are kept and added to it.
      * The file is read and opened under [io] only; the words are merged under the memory lock.
      */
-    fun load() = synchronized(io) {
+    fun load(): Unit = synchronized(io) {
         if (state != State.NOT_LOADED || !unlocked()) return
+        loadFile()
+        // The key itself refuses to work while the phone is locked (Q33): a list on an older key moves to one, whichever
+        // way it was loaded (read, new, or set aside).
+        if (state == State.LOADED && runCatching { sealer.needsUpgrade() }.getOrDefault(false) &&
+            runCatching { sealer.rotate() }.getOrDefault(false)) {
+            synchronized(this) { dirty = true }
+        }
+    }
+
+    /** [load]'s work, under [io]. */
+    private fun loadFile() {
         // A leftover save in progress is never read (4).
         tmp.delete()
         if (!file.exists()) { startLoaded(emptyMap(), emptySet(), emptyMap(), newSalt(), rewrite = false); return }
@@ -257,6 +281,8 @@ class WordStore(
         } catch (e: Unreadable) {
             setAsideFile()
             return
+        } catch (e: Locked) {
+            return // not now; the next field after unlock tries again
         } catch (e: Exception) {
             // Passing: stay NOT_LOADED, nothing saved, the next field retries; after a few in a row it isn't passing.
             // The phone locking mid-read isn't a failure of the file (the key refuses while locked, Q33).
@@ -307,10 +333,6 @@ class WordStore(
         val keptSalt = fileSalt?.takeIf { it.size == SALT_BYTES }
         if (keptSalt == null) prints.clear()
         startLoaded(fromFile, savedInFile, prints, keptSalt ?: newSalt(), rewrite = format < FORMAT || keptSalt == null)
-        // The key itself refuses to work while the phone is locked (Q33); lists sealed with an older key move to one.
-        if (runCatching { sealer.needsUpgrade() }.getOrDefault(false) && runCatching { sealer.rotate() }.getOrDefault(false)) {
-            synchronized(this) { dirty = true }
-        }
     }
 
     /**
@@ -364,6 +386,7 @@ class WordStore(
             // The seal worked, so the key is fine: a full disk or a failed rename says nothing about it (R6).
             Write.DISK_FAILED -> { saveFailures = 0; return }
             // The phone locked while saving: the key refuses until unlock (Q33), which says nothing about the key.
+            Write.LOCKED -> return
             Write.SEAL_FAILED -> if (!unlocked()) return
         }
         // A key that fails to seal every time is broken. Safe rotation (A-D1, Q2): a new key next to the old one, the
@@ -383,11 +406,11 @@ class WordStore(
         if (runCatching { sealer.hasOldKeys() }.getOrDefault(false)) runCatching { sealer.retireOld() }
     }
 
-    private enum class Write { OK, SEAL_FAILED, DISK_FAILED }
+    private enum class Write { OK, SEAL_FAILED, LOCKED, DISK_FAILED }
 
     /** Sealed, then a temp file, synced, then a checked rename. Under [io]. */
     private fun write(body: ByteArray): Write {
-        val sealed = try { sealer.seal(body) } catch (e: Exception) { return Write.SEAL_FAILED }
+        val sealed = try { sealer.seal(body) } catch (e: Locked) { return Write.LOCKED } catch (e: Exception) { return Write.SEAL_FAILED }
         return try {
             // On the disk before the rename, so a power cut can't leave an empty list in its place.
             java.io.FileOutputStream(tmp).use { out -> out.write(sealed); out.fd.sync() }
@@ -413,6 +436,7 @@ class WordStore(
             pending.clear(); early.clear(); earlySaved.clear()
             // A new salt: nothing from before can match a new list's fingerprints.
             salt = newSalt()
+            dropCaches()
             generation++
             dirty = false
             state = State.LOADED

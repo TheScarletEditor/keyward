@@ -191,9 +191,10 @@ class SettingsActivity : ComponentActivity() {
             }
             // While it's open: no screenshots or recordings, blank in Recents, nothing for content capture or autofill
             // (which on-device assistants read) (Q35).
-            DisposableEffect(wordsPage) {
-                if (wordsPage) hideFromCapture(true)
-                onDispose { if (wordsPage) hideFromCapture(false) }
+            val wordsOpen = wordsPage
+            DisposableEffect(wordsOpen) {
+                if (wordsOpen) hideFromCapture(true)
+                onDispose { if (wordsOpen) hideFromCapture(false) }
             }
             BackHandler(enabled = licenses && reading == null) { licenses = false }
             BackHandler(enabled = reading != null) { readingIndex = -1 }

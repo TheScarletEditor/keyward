@@ -187,12 +187,13 @@ class KeysService : InputMethodService(), KeyListener {
         userWordsOn = suggestOn && !noLearning && !locked
         learnOn = userWordsOn && prefs.learn && !ownNoLearn
         if (userWordsOn) userWords.loadInBackground() else if (locked) userWords.unloadInBackground()
-        // Never a letter bubble or accent row in a password field: each character would show on screen (Q34).
-        keyboard.bubbleEnabled = prefs.bubble && !password
-        keyboard.accentsOn = !password
         soundOn = prefs.sound
         vibrateOn = prefs.vibrate
         applyLook()
+        // After applyLook (which sets the bubble from the setting): never a letter bubble or accent row in a password
+        // field, where each character would show on screen (Q34).
+        keyboard.bubbleEnabled = prefs.bubble && !password
+        keyboard.accentsOn = !password
 
         enterAction = info.imeOptions and EditorInfo.IME_MASK_ACTION
         val multiline = info.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0

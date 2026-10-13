@@ -37,6 +37,11 @@ if (-not $Serial) {
     $Serial = @($serials[0])
 }
 
+# Every device must be connected before the build and the password prompt.
+$connected = @(& $adb devices | Select-String '	device$' | ForEach-Object { ($_ -split '	')[0] })
+$missing = @($Serial | Where-Object { $connected -notcontains $_ })
+if ($missing.Count -gt 0) { Write-Host "Not connected: $($missing -join ', '). Plug in and unlock, then run again."; exit 1 }
+
 if ($Debug) {
     $real = @($Serial | Where-Object { -not $_.StartsWith('emulator-') })
     if ($real.Count -gt 0) { Write-Host "Debug builds only go on emulators, never a real device ($($real -join ', '))."; exit 1 }

@@ -14,8 +14,8 @@ Version 0.2.2 (versionCode 5) as decided in `docs/KEYS-0.2.2-PLAN.md` (slice 5, 
 | 2 | Code review | done | five agents (typing, storage, UI, security, Android pass); 12 findings, 3 questions; the R10 answer had its own slice check (clean, two notes fixed); 49 unit tests, lint no errors |
 | 3 | Cleanup | done | /simplify (reuse, simplification, efficiency, altitude agents); no TODOs, commented-out code or unused resources added; TUNING false in release; release notes drafted (Q8), README line (Q9), C1 answered (Q10); 49 unit tests, lint no errors |
 | 4 | QA | done | pass 3 after S1 (stage 5): clean (49 tests, no lint errors or new warnings, three builds, release APK checks unchanged). Pass 1: QA1 fixed, QA2 asked (Q11); pass 2 clean: 49 release unit tests, lintRelease no errors and no new warnings, release/personal/smoke built, release APK 0.2.2 (5), not debuggable, permissions as 0.2.1, 4,524,313 bytes (0.2.1: 4,451,441, +1.6%), license texts in assets/licenses (C2 done) |
-| 5 | Smoke test | running | Part 1 done (below); Part 2: the owner's checklist |
-| 6 | Ship | pending | |
+| 5 | Smoke test | done | Part 1 (emulators) and Part 2 (the owner: "tests pass"); the renamed build checked by the owner: "looks right" |
+| 6 | Ship | running | pushed; repo renamed to keyward; signing next |
 | 7 | Wrap-up | pending | |
 
 ## Findings
@@ -131,7 +131,9 @@ Checklist `scarlet-hq/projects/scarlet-keys/0.2.2-DEVICE-TESTS.md` on both devic
 
 | Step | Offered | Choice | Result |
 |---|---|---|---|
-| Install on devices | | | |
+| Install on devices | yes | the owner: "install the renamed build" | 0.2.2+aa2face on both devices; Keyward still the selected keyboard |
+| Push | yes | the owner: "push and rename the repo" | main pushed (3a10263..17d62d8) |
+| Repo rename | yes | same | TheScarletEditor/scarlet-keys renamed to TheScarletEditor/keyward; local remote updated |
 | Signed public build | | | |
 | GitHub release (draft) | | | |
 | Website update | | | |

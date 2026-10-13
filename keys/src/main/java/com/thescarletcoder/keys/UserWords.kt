@@ -33,6 +33,9 @@ class UserWords private constructor(context: Context) {
 
     fun isKnown(word: String) = store.isKnown(word)
     val canKeep: Boolean get() = store.canKeep
+    fun isSaved(word: String) = store.isSaved(word)
+    /** Saved words only, for fields where learning is off (S7-4). */
+    val saved: Collection<String> get() = store.savedWords
     fun boost(word: String) = store.boost(word)
 
     /** Learned and saved words, for suggestions. */
@@ -48,8 +51,8 @@ class UserWords private constructor(context: Context) {
     fun loadInBackground() = io.execute { store.load() }
     fun saveInBackground() = io.execute { store.save() }
 
-    /** What Settings shows: the count and the notice, if any. */
-    data class Status(val count: Int, val notice: WordStore.Notice)
+    /** What Settings shows: the count, every word held (listed or not, for Forget all), and the notice, if any. */
+    data class Status(val count: Int, val notice: WordStore.Notice, val held: Int = count)
 
     /**
      * For Settings: the file and Keystore work on a background thread, the answer on the main thread. The thread
@@ -57,7 +60,7 @@ class UserWords private constructor(context: Context) {
      */
     fun loadAsync(done: (Status) -> Unit) = io.execute {
         store.load()
-        val s = Status(store.count, store.notice)
+        val s = Status(store.count, store.notice, store.size)
         main.post { done(s) }
     }
 
@@ -65,7 +68,7 @@ class UserWords private constructor(context: Context) {
     fun entriesAsync(done: (List<WordStore.Entry>, Status) -> Unit) = io.execute {
         store.load()
         val e = store.entries()
-        val s = Status(store.count, store.notice)
+        val s = Status(store.count, store.notice, store.size)
         main.post { done(e, s) }
     }
 
@@ -75,7 +78,7 @@ class UserWords private constructor(context: Context) {
         store.load()
         store.remove(word)
         store.save()
-        val s = Status(store.count, store.notice)
+        val s = Status(store.count, store.notice, store.size)
         main.post { done(s) }
     }
 
@@ -84,13 +87,13 @@ class UserWords private constructor(context: Context) {
         store.load()
         val ok = store.keep(word)
         if (ok) store.save()
-        val s = Status(store.count, store.notice)
+        val s = Status(store.count, store.notice, store.size)
         main.post { done(ok, s) }
     }
 
     fun forgetAsync(done: (Boolean, Status) -> Unit) = io.execute {
         val ok = store.clear()
-        val s = Status(store.count, store.notice)
+        val s = Status(store.count, store.notice, store.size)
         main.post { done(ok, s) }
     }
 

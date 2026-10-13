@@ -65,7 +65,7 @@ fun ScarletField(
         decorationBox = { inner ->
             Box(
                 Modifier.fillMaxWidth().background(Color(p.raised), shape)
-                    .border(1.dp, Color(if (focused) p.scarletEdge else p.line), shape).padding(horizontal = 14.dp, vertical = 14.dp),
+                    .border(1.dp, Color(if (focused) p.tealEdge else p.line), shape).padding(horizontal = 14.dp, vertical = 14.dp),
             ) {
                 if (value.isEmpty()) Text(placeholder, color = Color(p.faint), fontSize = 17.sp, fontFamily = font)
                 inner()

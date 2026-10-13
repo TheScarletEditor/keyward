@@ -186,7 +186,7 @@ class SettingsActivity : ComponentActivity() {
                             modifier = Modifier.weight(1f).semantics { heading() })
                         Pill("Back", false, p, inter) { wordsPage = false }
                     }
-                    WordsPage(words, status, { status = it }, forgetting, forgetOk, forget, p, inter)
+                    WordsPage(words, status, { status = it }, forgetting, forgetOk, forget, prefs.learn, p, inter)
                     return@Column
                 }
                 if (tuning) {

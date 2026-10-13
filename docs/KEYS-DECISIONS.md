@@ -2,6 +2,15 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, slice 7 check)
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| S7-1 | Forget all and words used once or twice | "Always shown, clears all (Recommended)" | Forget all shows whenever anything is kept; its confirm names the quiet words when there are any. | Emulator. |
+| S7-2 | Old counts after the 3-use rule | "Start fresh at 3 uses (Recommended)" | Format 0 and 1 counts carry over as they are; a word taken back before can be taken back once more and is then saved. | WordStoreTest. |
+| S7-3 | Other scarlet outlines | "Text box teal, steps stay" | Focused text boxes outline in teal; the not-done set-up steps stay scarlet. | Screenshot. |
+| S7-4 | Saved words with learning off | "Saved words still work (Recommended)" | Saved words are never corrected in any field with suggestions; nothing new is learned or offered; the page says so. | Emulator. |
+
 ## 2026-10-12 (the owner, slice 7: your words)
 
 | # | Question | Answer (word for word) | Effect | Check |

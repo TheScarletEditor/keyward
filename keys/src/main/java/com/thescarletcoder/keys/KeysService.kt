@@ -164,7 +164,8 @@ class KeysService : InputMethodService(), KeyListener {
         autocorrectOn = suggestOn && prefs.autocorrect && !noSuggestFlag && !ownNoLearn
         learnOn = suggestOn && prefs.learn && !noSuggestFlag && !ownNoLearn &&
             info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING == 0
-        if (learnOn) userWords.loadInBackground()
+        // Saved words count wherever there are suggestions, learning on or off (S7-4).
+        if (suggestOn) userWords.loadInBackground()
         soundOn = prefs.sound
         vibrateOn = prefs.vibrate
         applyLook()
@@ -477,13 +478,12 @@ class KeysService : InputMethodService(), KeyListener {
         val typed = composing.toString()
         val my = ++seq
         val learnNow = learnOn
+        val savedNow = suggestOn
         val correctNow = autocorrectOn
         val keptNow = HashSet(kept)
         worker.execute {
             val started = System.nanoTime()
-            val boost: (String) -> Int = { if (learnNow) userWords.boost(it) else 0 }
-            val learned = if (learnNow) userWords.learned else emptyList()
-            val known = { w: String -> d.isKnown(w) || (learnNow && userWords.isKnown(w)) }
+            val (boost, learned, known) = wordsFor(d, learnNow, savedNow)
             val cands = d.candidates(typed, boost, learned)
             val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned, cands)?.let { matchCase(typed, it) } else null
             val ranked = cands.map { matchCase(typed, it.word) }.distinct()
@@ -518,9 +518,24 @@ class KeysService : InputMethodService(), KeyListener {
         if (!autocorrectOn || original.lowercase() in kept) return null
         if (pickFor == original) return autocorrectPick
         val d = dict ?: return null
-        val known = { w: String -> d.isKnown(w) || (learnOn && userWords.isKnown(w)) }
-        return d.autocorrect(original, known, { if (learnOn) userWords.boost(it) else 0 }, if (learnOn) userWords.learned else emptyList())
-            ?.let { matchCase(original, it) }
+        val (boost, learned, known) = wordsFor(d, learnOn, suggestOn)
+        return d.autocorrect(original, known, boost, learned)?.let { matchCase(original, it) }
+    }
+
+    private class UserLookup(val boost: (String) -> Int, val words: Collection<String>, val known: (String) -> Boolean) {
+        operator fun component1() = boost
+        operator fun component2() = words
+        operator fun component3() = known
+    }
+
+    /**
+     * The user's words for one lookup: learned and saved where learning is on; saved only where it's off, so a saved word
+     * is never corrected anywhere (S7-4); none in a field without suggestions.
+     */
+    private fun wordsFor(d: Dictionary, learn: Boolean, saved: Boolean): UserLookup = when {
+        learn -> UserLookup(userWords::boost, userWords.learned) { w -> d.isKnown(w) || userWords.isKnown(w) }
+        saved -> UserLookup({ if (userWords.isSaved(it)) userWords.boost(it) else 0 }, userWords.saved) { w -> d.isKnown(w) || userWords.isSaved(w) }
+        else -> UserLookup({ 0 }, emptyList()) { w -> d.isKnown(w) }
     }
 
     /** Personal/debug builds: first suggestion after a cold start, and p95 of the work per keystroke. */

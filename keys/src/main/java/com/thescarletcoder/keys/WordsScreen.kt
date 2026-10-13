@@ -47,7 +47,7 @@ private const val MAX_ROWS = 200
 @Composable
 internal fun WordsPage(
     words: UserWords, status: UserWords.Status?, onStatus: (UserWords.Status) -> Unit,
-    forgetting: Boolean, forgetOk: Boolean?, onForget: () -> Unit, p: ScarletPalette, font: FontFamily,
+    forgetting: Boolean, forgetOk: Boolean?, onForget: () -> Unit, learnOn: Boolean, p: ScarletPalette, font: FontFamily,
 ) {
     var entries by remember { mutableStateOf<List<WordStore.Entry>?>(null) }
     // Read again after every change here, and when the count or notice changes (Forget, from the main screen).
@@ -66,6 +66,7 @@ internal fun WordsPage(
         color = Color(p.soft), fontSize = 15.sp, fontFamily = font,
     )
     noticeText(status?.notice)?.let { Text(it, color = Color(p.soft), fontSize = 14.sp, fontFamily = font) }
+    if (!learnOn) Text("Learn my words is off: nothing new is learned, and your saved words still count.", color = Color(p.soft), fontSize = 14.sp, fontFamily = font)
 
     // No suggestions or learning in this box: searching must never teach the keyboard what was searched.
     ScarletField(
@@ -118,15 +119,18 @@ internal fun WordsPage(
     if (shown.size > MAX_ROWS) Text("Showing $MAX_ROWS of ${shown.size}. Search to find the rest.", color = Color(p.soft), fontSize = 14.sp, fontFamily = font)
 
     val count = status?.count ?: 0
-    if (count > 0 || status?.notice?.let { it != WordStore.Notice.NONE } == true || forgetOk == false) {
+    // Every word held counts here, listed or not: Forget all reaches words used once or twice too (S7-1).
+    val held = status?.held ?: 0
+    if (held > 0 || status?.notice?.let { it != WordStore.Notice.NONE } == true || forgetOk == false) {
         if (!confirmForget) {
             Pill("Forget all words", false, p, font, enabled = !forgetting, danger = true) { confirmForget = true }
         } else {
             Text(
-                when (count) {
-                    0 -> "Forget all your words? This can't be undone."
-                    1 -> "Forget your 1 word? This can't be undone."
-                    else -> "Forget all $count words? This can't be undone."
+                when {
+                    held > count -> "Forget all your words, including ones used only once or twice? This can't be undone."
+                    count == 1 -> "Forget your 1 word? This can't be undone."
+                    count > 1 -> "Forget all $count words? This can't be undone."
+                    else -> "Forget all your words? This can't be undone."
                 },
                 color = Color(p.text), fontSize = 16.sp, fontFamily = font,
             )

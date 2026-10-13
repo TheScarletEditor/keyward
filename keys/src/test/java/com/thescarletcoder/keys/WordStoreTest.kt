@@ -354,6 +354,13 @@ class WordStoreTest {
         assertTrue(t.isSaved("zorbex")); assertFalse("no count: skipped", t.isKnown("flimber"))
     }
 
+    @Test fun savedWordsAreListedApart() {
+        val s = store(); s.load()
+        s.keep("zorvex"); repeat(3) { s.record("quillet") }; s.record("flimber")
+        assertEquals(listOf("zorvex"), s.savedWords.toList())
+        assertEquals("every word held, for Forget all", 3, s.size)
+    }
+
     @Test fun nothingIsKeptWhileTheListIsRefused() {
         writeList(byteArrayOf((WordStore.FORMAT + 1).toByte()) + "zorbex\t3".toByteArray())
         val s = store(); s.load()

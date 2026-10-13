@@ -104,11 +104,20 @@ class WordStore(
         return learnedCache
     }
 
+    private var savedCache: List<String> = emptyList()
+    private var savedAt = -1L
+
+    /** Saved words only: what the keyboard uses where learning is off (S7-4). */
+    val savedWords: Collection<String> @Synchronized get() {
+        if (savedAt != generation) { savedCache = saved.toList(); savedAt = generation }
+        return savedCache
+    }
+
     /** Learned plus saved: what Settings counts (words used once or twice aren't counted, Q29). */
     val count: Int get() = learned.size
 
-    /** Every word held, listed or not (for tests of the file rules). */
-    internal val size: Int @Synchronized get() = counts.size
+    /** Every word held, listed or not: Forget all reaches these too (S7-1). */
+    val size: Int @Synchronized get() = counts.size
 
     /** One row of the Your words page. */
     data class Entry(val word: String, val uses: Int, val saved: Boolean)

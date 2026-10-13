@@ -489,7 +489,7 @@ class KeysService : InputMethodService(), KeyListener {
             val ranked = cands.map { matchCase(typed, it.word) }.distinct()
             val isKnown = known(typed)
             // A word Keyward doesn't know, offered as typed with "+ Save" (Q28): saved, it's never corrected again.
-            val offerSave = learnNow && !isKnown && typed.length >= 2
+            val offerSave = learnNow && !isKnown && Words.isWord(typed) && userWords.canKeep
             val list = ArrayList<String>(3)
             val highlight: Int
             if (pick != null) {

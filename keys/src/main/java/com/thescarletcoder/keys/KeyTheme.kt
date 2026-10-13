@@ -19,7 +19,8 @@ class KeyColors(p: ScarletPalette) {
     val soft = p.soft
     val faint = p.faint
     val enter = p.teal
-    val enterPressed = if (p.dark) 0xFF4C7F72.toInt() else 0xFF365E54.toInt()
+    /** Lighter in dark, darker in light, so the icon keeps its contrast while pressed (6.8:1 and 6.5:1). */
+    val enterPressed = if (p.dark) 0xFF6FAA9B.toInt() else 0xFF365E54.toInt()
     /** The Enter icon: the page colour on teal (4.9:1 light, 5.6:1 dark). */
     val enterText = p.bg
     /** "+ Save" on the strip: teal, darkened in light so the small text reads on the keyboard (about 5:1). */

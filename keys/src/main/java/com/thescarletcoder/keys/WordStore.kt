@@ -130,6 +130,9 @@ class WordStore(
         }
     }
 
+    /** False while the list is refused (a newer format, or unreadable and not moved aside): nothing can be saved. */
+    val canKeep: Boolean get() = !refused
+
     /** True once the file was read (or there was none): until then nothing is saved over it. */
     internal val isLoaded: Boolean get() = state == State.LOADED
 

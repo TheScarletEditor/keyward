@@ -32,7 +32,7 @@ class UserWords private constructor(context: Context) {
     )
 
     fun isKnown(word: String) = store.isKnown(word)
-    fun isSaved(word: String) = store.isSaved(word)
+    val canKeep: Boolean get() = store.canKeep
     fun boost(word: String) = store.boost(word)
 
     /** Learned and saved words, for suggestions. */
@@ -71,6 +71,8 @@ class UserWords private constructor(context: Context) {
 
     /** Remove one word and save at once, so the keyboard's copy and the file agree (Q30). */
     fun removeAsync(word: String, done: (Status) -> Unit) = io.execute {
+        // Read first: a remove before the file is read would come back with the next load.
+        store.load()
         store.remove(word)
         store.save()
         val s = Status(store.count, store.notice)

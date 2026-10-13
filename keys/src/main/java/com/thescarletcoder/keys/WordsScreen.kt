@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -49,9 +50,9 @@ internal fun WordsPage(
     forgetting: Boolean, forgetOk: Boolean?, onForget: () -> Unit, p: ScarletPalette, font: FontFamily,
 ) {
     var entries by remember { mutableStateOf<List<WordStore.Entry>?>(null) }
-    // Bumped after every change (and after Forget, from the main screen) so the list is read again.
-    val version = status
-    LaunchedEffect(version) { words.entriesAsync { e, s -> entries = e; if (s != status) onStatus(s) } }
+    // Read again after every change here, and when the count or notice changes (Forget, from the main screen).
+    var changes by remember { mutableIntStateOf(0) }
+    LaunchedEffect(status, changes) { words.entriesAsync { e, s -> entries = e; if (s != status) onStatus(s) } }
     var query by rememberSaveable { mutableStateOf("") }
     // The word whose Remove was tapped once (Q30: two taps to delete).
     var confirming by rememberSaveable { mutableStateOf<String?>(null) }
@@ -87,7 +88,7 @@ internal fun WordsPage(
                 words.keepAsync(q) { ok, s ->
                     busy = false
                     message = if (ok) "Saved \"$q\"." else "Couldn't save \"$q\"."
-                    onStatus(s)
+                    onStatus(s); changes++
                 }
             }
         }
@@ -108,7 +109,7 @@ internal fun WordsPage(
                     onKeep = { confirming = null },
                     onConfirm = {
                         busy = true; confirming = null
-                        words.removeAsync(e.word) { s -> busy = false; message = "Removed \"${e.word}\"."; onStatus(s) }
+                        words.removeAsync(e.word) { s -> busy = false; message = "Removed \"${e.word}\"."; onStatus(s); changes++ }
                     },
                 )
             }
@@ -122,7 +123,11 @@ internal fun WordsPage(
             Pill("Forget all words", false, p, font, enabled = !forgetting, danger = true) { confirmForget = true }
         } else {
             Text(
-                if (count > 0) "Forget all $count words? This can't be undone." else "Forget all your words? This can't be undone.",
+                when (count) {
+                    0 -> "Forget all your words? This can't be undone."
+                    1 -> "Forget your 1 word? This can't be undone."
+                    else -> "Forget all $count words? This can't be undone."
+                },
                 color = Color(p.text), fontSize = 16.sp, fontFamily = font,
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -345,6 +345,21 @@ class WordStoreTest {
         assertEquals(2, s.size); assertEquals(1, s.count)
     }
 
+    @Test fun aSavedMarkCountsOnlyFromFormat2() {
+        writeList(format1("zorbex\t3\ts\nquillet\t3"))
+        val s = store(); s.load()
+        assertFalse("format 1 has no saved mark: the line is skipped", s.isKnown("zorbex")); assertTrue(s.isKnown("quillet"))
+        writeList(byteArrayOf(2) + "zorbex\t1\ts\nflimber\ts".toByteArray())
+        val t = store(); t.load()
+        assertTrue(t.isSaved("zorbex")); assertFalse("no count: skipped", t.isKnown("flimber"))
+    }
+
+    @Test fun nothingIsKeptWhileTheListIsRefused() {
+        writeList(byteArrayOf((WordStore.FORMAT + 1).toByte()) + "zorbex\t3".toByteArray())
+        val s = store(); s.load()
+        assertFalse(s.canKeep); assertFalse(s.keep("quillet"))
+    }
+
     @Test fun savedWordsSurviveTheCap() {
         val s = store(); s.load()
         s.keep("zorvex")

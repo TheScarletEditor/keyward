@@ -221,6 +221,15 @@ The owner, at the signing step: "hold for my final testing. In settings, words g
 - Checks: WordStore tests (format 2 round trip, format 1 read, saved words survive the cap and trim, remove, the 3-use threshold, undo saves), KeyLabels test for the save label, emulator: the page, search, remove (two steps), Forget all (two steps), "+ Save" on a capitalised unknown word, teal Enter in light and dark.
 - Done (31ac535 and the slice check fix commit): 58 tests pass. Emulator (phone, personal build): the page, save from search, Remove (two steps), Forget all (two steps), "+ Save" on an unknown capitalised word that is then kept and suggested, a saved word left alone, teal Enter in dark and light, no "+ Save" in the search box. Screenshots: slice7-*.png. Slice check (review agent): fixed "+ Save" shown when it can't save (over 30 letters, refused list), "Forget all 1 words", remove before the list was read, the page list not refreshing after a change, unused UserWords.isSaved, the dark pressed Enter contrast (4:1 to 6.8:1), and tests for the saved mark only counting from format 2. Questions for the owner: S7-1 to S7-5.
 
+### Slice 8: locked down (added 2026-10-12, release on hold)
+
+From the owner's request and answers Q31 to Q38. Security review and battery review findings, with the owner's choices:
+
+- Words file format 3 (Q32), locked phone and key (Q33), capture (Q34), Your words PIN and capture (Q35), private boxes (Q37), field log (Q38), personal key and no debuggable builds on devices (Q36).
+- No visible change: faster suggestion search with identical results (first-letter ranges, no per-word allocation), skip work for keystrokes already typed past, fewer conversions, a baseline profile, no re-layout on every field, delete-repeat stopped on hide, the emoji initializer removed, a manifest allowlist guard, Gradle dependency verification, Settings ignores taps through overlays.
+- Measured before (Flip, 14 h on battery since charge): 6.5 mAh of about 1,384 mAh, 2 min CPU, about 20 MB PSS, no wake locks.
+- Checks: WordStore tests (format 3, migration from 0 to 2, hashes never readable, A to Z), suggestion results identical before and after on a word list, emulator: locked phone, black screenshot, PIN on Your words, incognito box.
+
 ### Slice 5: release 0.2.2
 
 - versionName 0.2.2, versionCode 5; README and release notes match the code.

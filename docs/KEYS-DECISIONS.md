@@ -2,6 +2,21 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-12 (the owner, slice 8: locked down)
+
+The owner, before the last build: "this will be the last build unless I find something to fix. Let's make sure its security, battery use, everything is optimized and the best version it can be. I want this thing locked down so no other app or ai or anything can use it against me somehow". A security review and a battery review ran; these are the owner's answers.
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q31 | The words file keeps every word typed, in last-used order | "Thats bad. It makes me not want to store words, but then the user can't delete it if they accidentally add a wrong word. So the solution is no custom words, but then what good is it? Can we encrypt it somehow or protect it better?" | Led to Q32. | |
+| Q32 | Fingerprints for words used once or twice, A to Z for the rest | "Yes, fingerprints + A to Z (Recommended)" | Format 3: learned and saved words as text, A to Z; words used once or twice only as salted hashes; no order kept. | WordStoreTest. |
+| Q33 | While the phone is locked | "Also lock the key itself" | Locked: dictionary only, nothing learned, the list dropped from memory; a new key generation with unlockedDeviceRequired, older keys retired after the first good save. | Emulator: lock, type, unlock. |
+| Q34 | Password characters on screen | "Always hide from capture" | The keyboard window is FLAG_SECURE everywhere; no bubble or accent row in password fields. | Screenshot is black. |
+| Q35 | Your words page exposure | "Also ask for your PIN" | Opening Your words asks for the device PIN, fingerprint or face (when the device has one); the page is FLAG_SECURE, blank in Recents, no content capture. | Emulator. |
+| Q36 | Signing of the owner's builds | "Also a new personal key" | install.ps1 refuses debuggable builds on the owner's devices; a personal key the owner creates and types the password for; one uninstall per device. | Owner. |
+| Q37 | Incognito and no-suggestion boxes | "Dictionary only there (Recommended)" | No-learning fields: dictionary only, never the user's words. NO_SUGGESTIONS fields: no suggestions. Refines S7-4. | Emulator. |
+| Q38 | The personal build's recent-fields list | "Keep, but protect it" | Stored in credential-encrypted storage after unlock, skipping private and password fields; the old copy deleted. | Code. |
+
 ## 2026-10-12 (the owner, slice 7 check)
 
 | # | Question | Answer (word for word) | Effect | Check |

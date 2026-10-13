@@ -3,6 +3,8 @@
 # Only words made of letters and apostrophes (Keys ends a word at "-", "+" or "&"). Frequencies kept modest
 # (60 to 90) so a name never outranks a common word as an autocorrect target. Skip names that are a one-letter
 # slip from a common word (for example Ulta and "ultra", Shein and "shine"): knowing them would stop that typo being fixed.
+# Keyward: the app's own name (the owner, 2026-10-12), an exception to the one-letter rule above ("keyword").
+Keyward	60
 MacBook	90
 MacBooks	70
 macOS	80

@@ -48,7 +48,7 @@ class SuggestTest {
     }
 
     @Test fun modernNamesAreKnown() {
-        listOf("macbook", "Macbook", "MacBook", "airpods", "uber", "venmo", "TikTok").forEach { assertNull(it, fix(it)) }
+        listOf("macbook", "Macbook", "MacBook", "airpods", "uber", "venmo", "TikTok", "Keyward", "keyward").forEach { assertNull(it, fix(it)) }
         val c = dict.candidates("macbook", { 0 }, emptyList()).map { it.word }
         assertTrue(c.toString(), "MacBook" in c)
     }

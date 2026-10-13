@@ -1,7 +1,5 @@
 # Keyward
 
-Formerly Scarlet Keys.
-
 An Android keyboard that never touches the internet. By [The Scarlet Coder](https://thescarletcoder.com).
 
 - Standard QWERTY, sized for tablets and phones, in light and dark (or following the system).

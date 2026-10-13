@@ -1,4 +1,3 @@
-- Scarlet Keys is now Keyward: same keyboard, same promise, a name of its own.
 - Your words: a new page in Settings to search your words, remove one, add one, or forget them all. Deleting always takes two taps, and the page asks for your PIN, fingerprint or face first.
 - Save a word: when Keyward doesn't know a word you type, tap "+ Save" above the keys and it's never corrected again. Taking back a correction saves the word too.
 - Words are learned after three uses, and a capital letter no longer stops a correction: save a name once and it stays as you typed it.

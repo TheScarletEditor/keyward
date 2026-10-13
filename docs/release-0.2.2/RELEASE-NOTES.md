@@ -1,10 +1,17 @@
 - Scarlet Keys is now Keyward: same keyboard, same promise, a name of its own.
+- Your words: a new page in Settings to search your words, remove one, add one, or forget them all. Deleting always takes two taps, and the page asks for your PIN, fingerprint or face first.
+- Save a word: when Keyward doesn't know a word you type, tap "+ Save" above the keys and it's never corrected again. Taking back a correction saves the word too.
+- Words are learned after three uses, and a capital letter no longer stops a correction: save a name once and it stays as you typed it.
+- Locked down: the keyboard is blacked out in screenshots, screen recordings and screen sharing; no letter bubble or accents in password fields; while your phone is locked only the dictionary is used and your words leave memory; incognito boxes get dictionary suggestions only.
+- Your words file keeps no typing order, and words used only once or twice are stored as fingerprints that can't be read back.
+- Enter is now teal; scarlet marks delete buttons.
 - Landscape: the keyboard no longer covers the whole screen, and a phone keeps its phone-sized keys when you turn it.
 - Fixed: two quick backspaces could remove the spaces between earlier words.
 - Fixed: typing a period could sometimes erase the word before it.
 - "i" becomes "I", and "im" and "ive" become "I'm" and "I've" ("i.e." stays as typed).
-- Knows newer names like MacBook, AirPods, Venmo and TikTok, and never autocorrects a word you capitalise yourself in the middle of a sentence.
+- Knows newer names like MacBook, AirPods, Venmo and TikTok, and its own name.
 - Works with TalkBack: every key, suggestion and setting is spoken, you type by lifting your finger, and accents are in the actions menu.
-- Learned words are safer: a list that can't be read is set aside, never overwritten, and "Forget learned words" only says "Forgotten." when every copy is gone.
+- Learned words are safer: a list that can't be read is set aside, never overwritten, and "Forget all words" only says "Forgotten." when every copy is gone.
+- Faster suggestions, with less work per key.
 - Settings: an Open source licenses page, and it keeps your place when you rotate.
 - Still no network access.

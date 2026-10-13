@@ -112,10 +112,20 @@ tasks.matching { it.name.matches(Regex("process[A-Za-z]+MainManifest")) }.config
             )
             val components = listOf("activity", "activity-alias", "service", "receiver", "provider").flatMap(::names).filterNot { it in allowed }
             val queries = doc.getElementsByTagName("queries").length
-            if (permissions.isNotEmpty() || components.isNotEmpty() || queries > 0) {
+            // Code that runs at every process start, keyboard included, comes in as androidx.startup meta-data (A-C2).
+            val startup = names("meta-data").filter { it.startsWith("androidx.") && it.endsWith("Initializer") }.filterNot {
+                it == "androidx.lifecycle.ProcessLifecycleInitializer" || it == "androidx.profileinstaller.ProfileInstallerInitializer"
+            }
+            val app = doc.getElementsByTagName("application").item(0) as org.w3c.dom.Element
+            val appProblems = listOfNotNull(
+                "allowBackup".takeIf { app.getAttributeNS(ns, "allowBackup") != "false" },
+                "usesCleartextTraffic".takeIf { app.hasAttributeNS(ns, "usesCleartextTraffic") },
+                "networkSecurityConfig".takeIf { app.hasAttributeNS(ns, "networkSecurityConfig") },
+            )
+            if (permissions.isNotEmpty() || components.isNotEmpty() || queries > 0 || startup.isNotEmpty() || appProblems.isNotEmpty()) {
                 throw GradleException(
                     "Merged manifest ${f.path} has what isn't on the allowlist: permissions $permissions, components $components, " +
-                        "queries $queries. Stop and flag it to the owner."
+                        "queries $queries, startup code $startup, application settings $appProblems. Stop and flag it to the owner."
                 )
             }
         }

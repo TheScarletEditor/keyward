@@ -8,13 +8,16 @@ The owner, before the last build: "this will be the last build unless I find som
 
 | # | Question | Answer (word for word) | Effect | Check |
 |---|---|---|---|---|
+| (slice 8) | No visible change, under the same request | (the owner's request above) | The EmojiCompat startup initializer removed; a manifest allowlist that fails the build on any other permission, component, startup initializer, `<queries>` or backup or network setting; Gradle dependency verification (sha256). | Build. |
 | Q31 | The words file keeps every word typed, in last-used order | "Thats bad. It makes me not want to store words, but then the user can't delete it if they accidentally add a wrong word. So the solution is no custom words, but then what good is it? Can we encrypt it somehow or protect it better?" | Led to Q32. | |
 | Q32 | Fingerprints for words used once or twice, A to Z for the rest | "Yes, fingerprints + A to Z (Recommended)" | Format 3: learned and saved words as text, A to Z; words used once or twice only as salted hashes; no order kept. | WordStoreTest. |
 | Q33 | While the phone is locked | "Also lock the key itself" | Locked: dictionary only, nothing learned, the list dropped from memory; a new key generation with unlockedDeviceRequired, older keys retired after the first good save. | Emulator: lock, type, unlock. |
 | Q34 | Password characters on screen | "Always hide from capture" | The keyboard window is FLAG_SECURE everywhere; no bubble or accent row in password fields. | Screenshot is black. |
-| Q35 | Your words page exposure | "Also ask for your PIN" | Opening Your words asks for the device PIN, fingerprint or face (when the device has one); the page is FLAG_SECURE, blank in Recents, no content capture. | Emulator. |
+| Q35 | Your words page exposure | "Also ask for your PIN" | Opening Your words asks for the device PIN, fingerprint or face (when the device has one), which needs the USE_BIOMETRIC permission; the page is FLAG_SECURE, blank in Recents, no content capture. | Emulator. |
 | Q36 | Signing of the owner's builds | "Also a new personal key" | install.ps1 refuses debuggable builds on the owner's devices; a personal key the owner creates and types the password for; one uninstall per device. | Owner. |
 | Q37 | Incognito and no-suggestion boxes | "Dictionary only there (Recommended)" | No-learning fields: dictionary only, never the user's words. NO_SUGGESTIONS fields: no suggestions. Refines S7-4. | Emulator. |
+| Q41 | Learn my words description | "Mention three uses (Recommended)" | "Learns words you use often (after three uses), so it stops correcting them. Single words only, encrypted on this device. Never from password fields or fields an app marks as private, like incognito tabs." Release notes and README text approved as shown ("Use as written (Recommended)"). | Screenshot. |
+| Q40 | Keyward corrected to "keyword" | "I beg so many of your pardons, the app wants to correct Keyward to Keyword. Please fix, lol" | Keyward added to tools/dict/extra.dict, an exception to its one-letter rule. | SuggestTest. |
 | Q39 | Locking before Keyward saves | "Drop it anyway (Recommended)" | When the screen goes off or the phone locks, the list always leaves memory; words used in the last seconds before an instant lock may not be remembered. | WordStoreTest. |
 | Q38 | The personal build's recent-fields list | "Keep, but protect it" | Stored in credential-encrypted storage after unlock, skipping private and password fields; the old copy deleted. | Code. |
 
@@ -31,7 +34,7 @@ The owner, before the last build: "this will be the last build unless I find som
 
 | # | Question | Answer (word for word) | Effect | Check |
 |---|---|---|---|---|
-| Q27 | Layout for the words list | "A: Your words page (Recommended)" | A "Your words" card in Settings opens a page with search, the list, remove and Forget all. | Emulator walk. |
+| Q27 | Layout for the words list | "A: Your words page (Recommended)" | A "Your words" card in Settings opens a page with search, the list, remove and Forget all; adding a word from the search box, as Draft A showed ("Search, remove or add."). | Emulator walk. |
 | Q28 | Accidental capitals | "Correct unless saved (Recommended)" | The names rule (Q7) is replaced: capitalised words are corrected unless saved or known; "+ Save" on the strip. Supersedes Q7. | SuggestTest; emulator. |
 | Q29 | What the words list holds | "Learned + saved, shown apart (Recommended)" | Learned at 3 uses; saved kept until removed; one-off words not counted or listed. | WordStoreTest. |
 | Q30 | Scarlet outlines | "Delete actions (Recommended)" | Remove and Forget all (and their confirms) outlined in scarlet; Enter teal. | Screenshots. |

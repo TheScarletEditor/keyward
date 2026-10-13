@@ -5,16 +5,20 @@ Mode: full. Public: yes.
 
 Version 0.2.2 (versionCode 5) as decided in `docs/KEYS-0.2.2-PLAN.md` (slice 5, accepted with the plan, Q4). This run is slice 5 of that plan. Slices 0 to 4 each had a `/finalize --slice` check; their findings are in the plan.
 
+## Re-run 2 (from Stage 1, 2026-10-12)
+
+The owner held signing for more work, then asked for /finalize again. Re-run scope: everything since the hold, 0a12989..HEAD: slice 7 (Your words, saved words, two-tap deletes, teal Enter; Q27 to Q30, S7-1 to S7-4), slice 8 (locked down: words file format 3, locked-phone key, capture blocking, PIN for Your words, private boxes, personal signing key, faster suggestions, manifest allowlist, dependency verification; Q31 to Q39), and the Keyward dictionary fix. Each slice had its own slice check (plan notes). The owner's phone and tablet run 0.2.2+84ed148, signed with the owner's personal key (Q36 replaces the debug-key rule for the owner's devices: personal builds are now signed with a key only the owner holds).
+
 ## Stages
 
 | # | Stage | Status | Notes |
 |---|---|---|---|
 | 0 | Preflight | done | tree clean, 8 commits ahead of origin; gh signed in; both devices connected; emulators scarlet_phone, scarlet_small, scarlet_tablet |
-| 1 | Audit | done | release manifest permissions match 0.2.1 (VIBRATE, receiver permission); allowBackup false; four agents (spec, rules, manifest, data); 9 findings, 4 questions; the rotation answer had its own slice check |
-| 2 | Code review | done | five agents (typing, storage, UI, security, Android pass); 12 findings, 3 questions; the R10 answer had its own slice check (clean, two notes fixed); 49 unit tests, lint no errors |
-| 3 | Cleanup | done | /simplify (reuse, simplification, efficiency, altitude agents); no TODOs, commented-out code or unused resources added; TUNING false in release; release notes drafted (Q8), README line (Q9), C1 answered (Q10); 49 unit tests, lint no errors |
-| 4 | QA | done | pass 3 after S1 (stage 5): clean (49 tests, no lint errors or new warnings, three builds, release APK checks unchanged). Pass 1: QA1 fixed, QA2 asked (Q11); pass 2 clean: 49 release unit tests, lintRelease no errors and no new warnings, release/personal/smoke built, release APK 0.2.2 (5), not debuggable, permissions as 0.2.1, 4,524,313 bytes (0.2.1: 4,451,441, +1.6%), license texts in assets/licenses (C2 done) |
-| 5 | Smoke test | done | Part 1 (emulators) and Part 2 (the owner: "tests pass"); the renamed build checked by the owner: "looks right" |
+| 1 | Audit | done (re-run 2) | re-run 2: four agents; release manifest adds only USE_BIOMETRIC (Q35); A6 to A19, 13 fixed, 1 at hq-log, 2 dropped; Q41; locked-only key checked on an emulator with no screen lock (Android 16, as both devices); 71 tests, all build types pass the allowlist. Earlier:  release manifest permissions match 0.2.1 (VIBRATE, receiver permission); allowBackup false; four agents (spec, rules, manifest, data); 9 findings, 4 questions; the rotation answer had its own slice check |
+| 2 | Code review | running (re-run 2) | earlier:  five agents (typing, storage, UI, security, Android pass); 12 findings, 3 questions; the R10 answer had its own slice check (clean, two notes fixed); 49 unit tests, lint no errors |
+| 3 | Cleanup | pending (re-run 2) | earlier:  /simplify (reuse, simplification, efficiency, altitude agents); no TODOs, commented-out code or unused resources added; TUNING false in release; release notes drafted (Q8), README line (Q9), C1 answered (Q10); 49 unit tests, lint no errors |
+| 4 | QA | pending (re-run 2) | earlier:  pass 3 after S1 (stage 5): clean (49 tests, no lint errors or new warnings, three builds, release APK checks unchanged). Pass 1: QA1 fixed, QA2 asked (Q11); pass 2 clean: 49 release unit tests, lintRelease no errors and no new warnings, release/personal/smoke built, release APK 0.2.2 (5), not debuggable, permissions as 0.2.1, 4,524,313 bytes (0.2.1: 4,451,441, +1.6%), license texts in assets/licenses (C2 done) |
+| 5 | Smoke test | pending (re-run 2) | earlier:  Part 1 (emulators) and Part 2 (the owner: "tests pass"); the renamed build checked by the owner: "looks right" |
 | 6 | Ship | on hold | pushed; repo renamed to keyward; the owner held signing for slice 7 (your words, saved words, teal Enter); Stages 1 to 5 re-run for it |
 | 7 | Wrap-up | pending | |
 
@@ -22,6 +26,22 @@ Version 0.2.2 (versionCode 5) as decided in `docs/KEYS-0.2.2-PLAN.md` (slice 5, 
 
 | Id | Stage | Label | Where | Finding | Done | Commit |
 |---|---|---|---|---|---|---|
+| A6 | 1 (re-run 2) | mechanical | docs/release-0.2.2/RELEASE-NOTES.md | names rule and "Forget learned words" now wrong; slices 7 and 8 missing | rewritten, shown to the owner word for word | stage 1 r2 |
+| A7 | 1 (re-run 2) | mechanical | README.md:12,19 | learning line incomplete; install line says debug key | rewritten, shown to the owner word for word | stage 1 r2 |
+| A8 | 1 (re-run 2) | question | SettingsActivity.kt Learn my words | description reads as if one use is enough (Q29: three) | Q41: "Mention three uses" | stage 1 r2 |
+| A9 | 1 (re-run 2) | mechanical | WordsScreen.kt | Save shown while the list is refused (always fails) | hidden then (Status.canKeep) | stage 1 r2 |
+| A10 | 1 (re-run 2) | mechanical | docs/KEYS-DECISIONS.md | Keyward dictionary fix, add-from-page and the slice 8 build guards had no row | Q40 and rows added | stage 1 r2 |
+| A11 | 1 (re-run 2) | mechanical | SettingsActivity.kt Pill KDoc | said delete actions are the only scarlet outline | reworded | stage 1 r2 |
+| A12 | 1 (re-run 2) | mechanical | scarlet-hq DECISIONS.md D-018 | superseded by Q36; Q27 to Q41 not mirrored | at hq-log (wrap-up) | |
+| A13 | 1 (re-run 2) | mechanical | keys/build.gradle.kts guard | didn't catch new startup initializers or backup/network application settings | both checked | stage 1 r2 |
+| A14 | 1 (re-run 2) | mechanical | install.ps1 -NoBuild | signed a missing or stale APK with a misleading error | checks it exists, shows its time | stage 1 r2 |
+| A15 | 1 (re-run 2) | mechanical | WordStore.saved, UserWords | the upgrade retired the old key even while a set-aside list (Q2, Q13) might need it | old keys kept while a set-aside list exists; Forget lets them go | stage 1 r2 |
+| A16 | 1 (re-run 2) | mechanical | WordStore.load | a locked-only key refusing for good while unlocked left learning silently stuck | after 10 in a row the list is refused this run, Settings shows the notice, the file stays | stage 1 r2 |
+| A17 | 1 (re-run 2) | mechanical | WordStore.write | folder not synced after the rename, just before old keys are retired | folder fsync after the rename | stage 1 r2 |
+| A18 | 1 (re-run 2) | mechanical | KeysService | the format 3 rewrite and key move only saved with learning on | saves whenever the user's words are in use | stage 1 r2 |
+| A19 | 1 (re-run 2) | check | locked-only key on a phone with no screen lock | Android 14 had issues with such keys without a lock | emulator, Android 16, no lock: words load cold and after screen off and on | |
+| dropped | 1 (re-run 2) | | count 2 words demoted on upgrade | answered by S7-2 ("Start fresh at 3 uses") | | |
+| dropped | 1 (re-run 2) | | downgrade to 0.2.1 | a release can't be downgraded without an uninstall, which wipes the data anyway | | |
 | A1 | 1 | question | scarlet-hq D-021 | Keys' public name is Keyward (decided today); 0.2.2 still says Scarlet Keys | Q1: rename in its own release | stage 1 |
 | A2 | 1 | mechanical | docs/KEYS-DECISIONS.md Q15, plan slice 4 | Q15's shown list not recorded; plan named a "Numbers" label that doesn't exist | Q15 points at KeyLabels.kt at 38d0669; plan wording fixed | stage 1 |
 | A3 | 1 | mechanical | docs/KEYS-0.2.2-PLAN.md:3,50 | status line and "Proposed:" out of date | updated | stage 1 |

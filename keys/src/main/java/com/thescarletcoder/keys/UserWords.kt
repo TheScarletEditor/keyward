@@ -5,6 +5,8 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.os.UserManager
+import android.system.Os
+import android.system.OsConstants
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
@@ -28,6 +30,10 @@ import java.util.concurrent.Executors
 class UserWords private constructor(context: Context) {
     private val store = WordStore(
         dirProvider = { context.noBackupFilesDir },
+        syncDir = { d ->
+            val fd = Os.open(d.path, OsConstants.O_RDONLY, 0)
+            try { Os.fsync(fd) } finally { Os.close(fd) }
+        },
         sealer = KeystoreSealer,
         // Unlocked since boot and unlocked now: the key refuses while the phone is locked (Q33), so nothing is tried then.
         unlocked = {
@@ -59,7 +65,7 @@ class UserWords private constructor(context: Context) {
     fun unloadInBackground() = io.execute { store.save(); store.unload() }
 
     /** What Settings shows: the count, every word held (listed or not, for Forget all), and the notice, if any. */
-    data class Status(val count: Int, val notice: WordStore.Notice, val held: Int = count)
+    data class Status(val count: Int, val notice: WordStore.Notice, val held: Int = count, val canKeep: Boolean = true)
 
     /**
      * For Settings: the file and Keystore work on a background thread, the answer on the main thread. The thread
@@ -67,7 +73,7 @@ class UserWords private constructor(context: Context) {
      */
     fun loadAsync(done: (Status) -> Unit) = io.execute {
         store.load()
-        val s = Status(store.count, store.notice, store.size)
+        val s = Status(store.count, store.notice, store.size, store.canKeep)
         main.post { done(s) }
     }
 
@@ -75,7 +81,7 @@ class UserWords private constructor(context: Context) {
     fun entriesAsync(done: (List<WordStore.Entry>, Status) -> Unit) = io.execute {
         store.load()
         val e = store.entries()
-        val s = Status(store.count, store.notice, store.size)
+        val s = Status(store.count, store.notice, store.size, store.canKeep)
         main.post { done(e, s) }
     }
 
@@ -85,7 +91,7 @@ class UserWords private constructor(context: Context) {
         store.load()
         store.remove(word)
         store.save()
-        val s = Status(store.count, store.notice, store.size)
+        val s = Status(store.count, store.notice, store.size, store.canKeep)
         main.post { done(s) }
     }
 
@@ -94,13 +100,13 @@ class UserWords private constructor(context: Context) {
         store.load()
         val ok = store.keep(word)
         if (ok) store.save()
-        val s = Status(store.count, store.notice, store.size)
+        val s = Status(store.count, store.notice, store.size, store.canKeep)
         main.post { done(ok, s) }
     }
 
     fun forgetAsync(done: (Boolean, Status) -> Unit) = io.execute {
         val ok = store.clear()
-        val s = Status(store.count, store.notice, store.size)
+        val s = Status(store.count, store.notice, store.size, store.canKeep)
         main.post { done(ok, s) }
     }
 

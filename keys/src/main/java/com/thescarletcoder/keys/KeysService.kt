@@ -242,7 +242,9 @@ class KeysService : InputMethodService(), KeyListener {
         super.onFinishInputView(finishingInput)
         if (::panel.isInitialized) panel.keyboard.stopTouches()
         finishComposing()
-        if (learnOn) userWords.saveInBackground()
+        // Whenever the user's words are in use, learning on or off: the save also writes an older file in the new format
+        // and moves it onto the new key (Q32, Q33). A save with nothing changed writes nothing.
+        if (userWordsOn) userWords.saveInBackground()
     }
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
@@ -603,7 +605,7 @@ class KeysService : InputMethodService(), KeyListener {
         if (::prefs.isInitialized) prefs.unlisten(prefsChanged)
         if (::feedback.isInitialized) feedback.release()
         // On the worker, which finishes queued work after shutdown(): no file or Keystore work on the main thread (K5).
-        if (::prefs.isInitialized && prefs.learn) userWords.saveInBackground()
+        if (::prefs.isInitialized) userWords.saveInBackground()
         worker.shutdown()
         super.onDestroy()
     }

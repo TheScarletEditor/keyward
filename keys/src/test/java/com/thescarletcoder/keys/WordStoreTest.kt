@@ -514,6 +514,29 @@ class WordStoreTest {
         assertTrue(s.learned.isEmpty()); assertTrue(s.savedWords.isEmpty())
     }
 
+    @Test fun oldKeysStayWhileASetAsideListMightNeedThem() {
+        val s = store(); s.load(); repeat(3) { s.record("zorbex") }; s.save()
+        File(dir, "words.unreadable").writeBytes(byteArrayOf(1))
+        sealer.upgrade = true
+        val t = store(); t.load(); t.save()
+        assertEquals("a set-aside list keeps its key", 2, sealer.keys.size)
+        assertTrue(t.clear()); t.record("quillet"); t.save()
+        assertEquals("after Forget the old key goes", 1, sealer.keys.size)
+    }
+
+    @Test fun aKeyThatKeepsRefusingWhileUnlockedStopsLearningAndSaysSo() {
+        val s = store(); s.load(); repeat(3) { s.record("zorbex") }; s.save()
+        val before = enc.readBytes()
+        sealer.lockedNow = true
+        val t = store()
+        repeat(WordStore.MAX_LOCKED) { t.load() }
+        assertEquals(WordStore.Notice.NOT_LEARNING, t.notice)
+        t.record("quillet"); t.save()
+        sealer.lockedNow = false
+        assertArrayEquals("the file is left as it was", before, enc.readBytes())
+        assertFalse(t.hasSetAside)
+    }
+
     /** Letters-only made-up words: a, b, ..., z, ba, bb, ... */
     private fun name(i: Int): String {
         var n = i; val sb = StringBuilder()

@@ -9,7 +9,8 @@ An Android keyboard that never touches the internet. By [The Scarlet Coder](http
 - On phones, the letter you're pressing shows above your thumb (can be turned off).
 - Offline word suggestions and autocorrect. One backspace undoes an autocorrect (after a space or punctuation), and a word you take back stays as you typed it. Backspacing into a word picks the whole word back up.
 - Works with TalkBack: every key, suggestion and setting is spoken.
-- Optional: learns your own words so it stops correcting them. Single words only, encrypted on the device, never from password fields. Off until you turn it on.
+- Optional: learns words you use often (after three uses), and keeps any word you save with "+ Save", so it stops correcting them. The Your words page in Settings lets you search, remove or add words, and asks for your PIN first. Single words only, encrypted on the device with a key that only works while the phone is unlocked; never from password fields or private boxes. Off until you turn it on.
+- Hidden from screenshots and screen recording, with no letter bubble in password fields.
 - Key sound and vibration are built in, both off by default.
 - No network access at all. The build fails if any dependency tries to add it.
 - No ads, no tracking, no account.
@@ -17,7 +18,7 @@ An Android keyboard that never touches the internet. By [The Scarlet Coder](http
 ## Build and install
 
 Needs the Android SDK and JDK 17 (Android Studio's bundled JDK works).
-`install.ps1` builds the `personal` type: optimized like a release, signed with your own debug key (`-Debug` for a debug build).
+`install.ps1` builds the `personal` type: optimized like a release, and signed with your own personal key, whose password it asks for (create the key once with keytool; see the script's header). Debug builds only go on emulators (`-Debug`).
 
 ```
 powershell -ExecutionPolicy Bypass -File .\install.ps1

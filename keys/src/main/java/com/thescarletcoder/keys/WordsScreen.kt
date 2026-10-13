@@ -81,7 +81,8 @@ internal fun WordsPage(
     val shown = list?.filter { q.isEmpty() || it.word.contains(q) }.orEmpty()
 
     // A word not on the list can be saved from here ("Search, remove or add").
-    if (list != null && Words.isWord(q) && list.none { it.word == q }) {
+    // Not while the list is refused (a newer version's list, or one that can't be read): a save would always fail.
+    if (list != null && status?.canKeep != false && Words.isWord(q) && list.none { it.word == q }) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("\"$q\" isn't on your list.", color = Color(p.text), fontSize = 16.sp, fontFamily = font, modifier = Modifier.weight(1f))
             Pill("Save", false, p, font, enabled = !busy) {

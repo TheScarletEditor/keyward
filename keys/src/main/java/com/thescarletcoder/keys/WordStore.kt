@@ -25,6 +25,8 @@ class WordStore(
     private val unlocked: () -> Boolean = { true },
     private val move: (File, File) -> Boolean = { from, to -> from.renameTo(to) },
     private val delete: (File) -> Boolean = { it.delete() },
+    /** Puts the folder's entries on disk (after a rename), so a power cut can't roll the rename back (A-D4). */
+    private val syncDir: (File) -> Unit = {},
 ) {
     /** Plain directory, for tests. */
     constructor(
@@ -97,6 +99,8 @@ class WordStore(
     private val refused get() = state == State.REFUSED || state == State.REFUSED_NEWER
     /** Passing errors in a row while unlocked; at [MAX_PASSING] the file is treated as unreadable (Q13). Under [io]. */
     private var passingFailures = 0
+    /** Locked refusals in a row while the phone says it's unlocked; at [MAX_LOCKED] the list is refused this run. Under [io]. */
+    private var lockedFailures = 0
     /** Saves whose seal failed in a row; at [MAX_PASSING] the key is taken as broken and rotated. Under [io]. */
     private var saveFailures = 0
     /** The key is replaced at most once per run. Under [io]. */
@@ -285,7 +289,10 @@ class WordStore(
             setAsideFile()
             return
         } catch (e: Locked) {
-            return // not now; the next field after unlock tries again
+            // Not now; the next field after unlock tries again. A key that keeps refusing while the phone says it's
+            // unlocked is stuck: nothing is learned or written this run, and Settings says so (the file stays as it is).
+            if (unlocked() && ++lockedFailures >= MAX_LOCKED) synchronized(this) { state = State.REFUSED }
+            return
         } catch (e: Exception) {
             // Passing: stay NOT_LOADED, nothing saved, the next field retries; after a few in a row it isn't passing.
             // The phone locking mid-read isn't a failure of the file (the key refuses while locked, Q33).
@@ -293,6 +300,7 @@ class WordStore(
             return
         }
         passingFailures = 0
+        lockedFailures = 0
         val format = formatOf(body)
         if (format < 0) { setAsideFile(); return }
         if (format > FORMAT) {
@@ -402,11 +410,15 @@ class WordStore(
         }
     }
 
-    /** The list as of [gen] is on disk: clean unless it changed meanwhile; older keys go (they hold nothing now). */
+    /**
+     * The list as of [gen] is on disk: clean unless it changed meanwhile; older keys go (they hold nothing now), except
+     * while a set-aside list is kept: it may only open with one of them (Q2, A-D1). Forget removes those lists, and the
+     * next save retires the keys.
+     */
     private fun saved(gen: Long) {
         saveFailures = 0
         synchronized(this) { if (generation == gen) dirty = false }
-        if (runCatching { sealer.hasOldKeys() }.getOrDefault(false)) runCatching { sealer.retireOld() }
+        if (setAsideFiles()?.isEmpty() == true && runCatching { sealer.hasOldKeys() }.getOrDefault(false)) runCatching { sealer.retireOld() }
     }
 
     private enum class Write { OK, SEAL_FAILED, LOCKED, DISK_FAILED }
@@ -417,7 +429,8 @@ class WordStore(
         return try {
             // On the disk before the rename, so a power cut can't leave an empty list in its place.
             java.io.FileOutputStream(tmp).use { out -> out.write(sealed); out.fd.sync() }
-            if (move(tmp, file)) Write.OK else { tmp.delete(); Write.DISK_FAILED }
+            // The rename itself is on disk before anything relies on it (old keys are retired right after, A-D4).
+            if (move(tmp, file)) { runCatching { syncDir(dir) }; Write.OK } else { tmp.delete(); Write.DISK_FAILED }
         } catch (e: Exception) {
             tmp.delete() // stays dirty: the next save tries again
             Write.DISK_FAILED
@@ -504,6 +517,8 @@ class WordStore(
         const val MAX_FILE_BYTES = 1L shl 20
         /** Passing errors in a row (while unlocked) before the file counts as unreadable (Q13), or the key as broken. */
         const val MAX_PASSING = 3
+        /** Locked refusals in a row while unlocked before the list is refused for this run (Smart Lock can cause a few). */
+        const val MAX_LOCKED = 10
 
         /**
          * 0.2.1 wrote text straight away (a word starts with a letter or apostrophe, a non-ASCII letter's first UTF-8

@@ -50,18 +50,25 @@ if ($Debug) {
     if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
     $apk = ".\keys\build\outputs\apk\debug\keys-debug.apk"
 } else {
-    if (-not (Test-Path $keystore)) { Write-Host "Personal key not found at $keystore. Create it first (docs/KEYS-DECISIONS.md, Q36)."; exit 1 }
+    if (-not (Test-Path $keystore)) {
+        Write-Host "Personal key not found at $keystore. Create it once (it asks for a new password):"
+        Write-Host "  keytool -genkeypair -keystore `"$keystore`" -alias $alias -keyalg RSA -keysize 4096 -validity 36500 -dname `"CN=Keyward personal`""
+        exit 1
+    }
     if (-not $NoBuild) {
         Write-Host "Building Keyward (personal)..."
         cmd /c ".\gradlew.bat :keys:assemblePersonal --console=plain -q"
         if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
     }
+    $unsigned = ".\keys\build\outputs\apk\personal\keys-personal-unsigned.apk"
+    if (-not (Test-Path $unsigned)) { Write-Host "No personal build to sign. Run again without -NoBuild."; exit 1 }
+    Write-Host "Signing the personal build from $((Get-Item $unsigned).LastWriteTime)."
     New-Item -ItemType Directory -Force .\keys\build\personal-signed | Out-Null
     $apk = ".\keys\build\personal-signed\keys-personal.apk"
     $secure = Read-Host "Personal key password" -AsSecureString
     $env:KEYWARD_PERSONAL_PASS = [System.Net.NetworkCredential]::new('', $secure).Password
     try {
-        & $apksigner sign --ks $keystore --ks-key-alias $alias --ks-pass env:KEYWARD_PERSONAL_PASS --out $apk ".\keys\build\outputs\apk\personal\keys-personal-unsigned.apk"
+        & $apksigner sign --ks $keystore --ks-key-alias $alias --ks-pass env:KEYWARD_PERSONAL_PASS --out $apk $unsigned
         $signed = $LASTEXITCODE -eq 0
     } finally {
         Remove-Item Env:KEYWARD_PERSONAL_PASS -ErrorAction SilentlyContinue

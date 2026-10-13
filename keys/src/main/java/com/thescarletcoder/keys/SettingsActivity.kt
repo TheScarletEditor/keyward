@@ -274,7 +274,7 @@ class SettingsActivity : ComponentActivity() {
                     Toggle("Autocorrect", "Fixes clear typos when you press space. Backspace right after puts your word back.", prefs.autocorrect, p, inter) { prefs.autocorrect = it }
                     Toggle(
                         "Learn my words",
-                        "Remembers words you use so it stops correcting them. Single words only, encrypted on this device. Never from password fields or fields an app marks as private, like incognito tabs.",
+                        "Learns words you use often (after three uses), so it stops correcting them. Single words only, encrypted on this device. Never from password fields or fields an app marks as private, like incognito tabs.",
                         prefs.learn, p, inter,
                     ) { prefs.learn = it }
                     // The list's state, if there's anything to say (Q2, Q12); the Your words page has the list and Forget (Q27).
@@ -448,7 +448,7 @@ internal fun Pill(
     label: String, selected: Boolean, p: ScarletPalette, font: FontFamily, enabled: Boolean = true,
     /** One of a set (Theme, Key height): TalkBack says "radio button, selected" (K4). */
     choice: Boolean = false,
-    /** A delete action: outlined in scarlet, the only scarlet outline in Settings (Q30). */
+    /** A delete action: outlined in scarlet (Q30). The only other scarlet outline is a set-up step not done yet (S7-3). */
     danger: Boolean = false,
     clickLabel: String? = null,
     onClick: () -> Unit,

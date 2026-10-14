@@ -2,6 +2,20 @@
 
 Status: **slices 0 to 4 done (2026-10-12); slice 5 (the release) runs as /finalize 0.2.2, report in `FINALIZE-0.2.2.md`.** Prepared 2026-10-11 with /prep (resume mode) from the cross-app pattern check (Command `docs/BUILD-PATTERNS-2026-10.md`, "Keys hits"). Every finding below was checked against the code at `80aa720` before it went in.
 
+## Next (/prep resume, 2026-10-14)
+
+Baseline at `e95592d` (`:keys:assembleDebug :keys:testDebugUnitTest :keys:lintDebug`, JAVA_HOME set as the repo scripts do): build passes with two Kotlin warnings (`LocalLifecycleOwner` deprecated, `SettingsActivity.kt:202` and `:270`); 72 of 72 unit tests pass; lint 0 errors, 36 warnings, all older than this work (UseKtx 13, GradleDependency 12, DrawAllocation 3, AndroidGradlePluginVersion 3, UseTomlInstead 2, one each of UseOfNonLambdaOffsetOverload, RedundantLabel, ObsoleteSdkInt). Nothing fixed here.
+
+State: tree clean, 24 commits ahead of origin, no commits since the /finalize pause. Repo guard installed and current (repo is public). No TODO or FIXME in `keys/src`. No device connected at prep time, so what's installed wasn't checked. No verified two-drive backup yet (0.2.2 skip recorded 2026-10-12).
+
+Order (owner's answers Q55 to Q61, `KEYS-DECISIONS.md`):
+
+1. **Folder rename to Keyward (Q56 to Q60).** Keyward only, now, from a session rooted outside this folder, following the rename spec's Keyward rows; unpushed commits move with the folder; backup skip recorded in STATUS-AUDIT. Done when: `assembleDebug` passes in the new folder, the device-version script and drift check find it, `git fetch` works, and hq-brief started in the new folder finds this project.
+2. **Owner's device testing (Q55).** Waiting. Nothing pushed or signed until the owner reports it done.
+3. **/finalize 0.2.2 resumes:** the phone emulator gets the personal-key build, then Stage 6 with SECURITY.md as a docs-only commit before the push and private vulnerability reporting turned on with the owner's OK (Q61), then Stage 7.
+
+Docs that disagree with D-025 (owner devices on the personal key), to correct at hq-log or Stage 7, not here: the hub STATUS-AUDIT line still says the owner's devices stay on debug-key builds, and scarlet-hq CONFLICTS C-03 is still listed open.
+
 Everything below was proposed by Claude and confirmed by the owner on 2026-10-11 (Q1 to Q4), so it is **decided**.
 
 ## Where things stand

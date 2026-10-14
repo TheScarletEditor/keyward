@@ -2,6 +2,20 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-14 (the owner, /prep resume)
+
+/finalize 0.2.2 is paused at the owner's device testing (Stage 5). These are the owner's picks, word for word.
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q55 | Device testing of the final build (0.2.2+996420f) | "Still testing" | Nothing is pushed or signed. /finalize resumes at Stage 6 only after the owner reports the tests done. | The device-test list in scarlet-hq is ticked, or the owner says so. |
+| Q56 | When the local folder becomes Keyward (brand-system D-036) | "Before the release" | The folder rename runs before /finalize Stage 6; Stage 6 runs from the Keyward folder. | Stage 0 of the resumed run sees the new folder. |
+| Q57 | Rename scope | "Keyward only (Recommended)" | Only this app's folder and what points at it (device-version script, install script in the hub repo, backup config, drift check, global instructions, finalize and prep skill docs, scarlet-hq repo map and brief). The other apps wait for their own pass. | `assembleDebug` passes in the new folder; the version script and drift check find it. |
+| Q58 | The rename spec wants the repo pushed first; this repo is 24 commits ahead and the push belongs to the release | "Rename unpushed (Recommended)" | The rename runs with the commits unpushed (they move with the folder). The push stays in Stage 6. An exception to the spec's preflight, recorded here. | `git log` in the new folder shows `e95592d` or later, still ahead of origin. |
+| Q59 | Backup gate for the rename (no drive verified yet) | "Skip, recorded (Recommended)" | Explicit skip for the folder rename, recorded in the hub's STATUS-AUDIT. | The STATUS-AUDIT skip line. |
+| Q60 | When the rename runs | "Now, while you test (Recommended)" | It runs now, from a session rooted outside this folder; no device install. | No install in that session. |
+| Q61 | SECURITY.md and private vulnerability reporting (proposed by Claude 2026-10-12) | "Add at the ship step (Recommended)" | At Stage 6: the drafted SECURITY.md lands as a docs-only commit before the push (no QA re-run, no app code), and GitHub private vulnerability reporting is turned on with the owner's OK. | The file in the repo; the setting on GitHub. |
+
 ## 2026-10-12 (the owner, slice 8: locked down)
 
 The owner, before the last build: "this will be the last build unless I find something to fix. Let's make sure its security, battery use, everything is optimized and the best version it can be. I want this thing locked down so no other app or ai or anything can use it against me somehow". A security review and a battery review ran; these are the owner's answers.

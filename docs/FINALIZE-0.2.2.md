@@ -188,10 +188,10 @@ Re-run 2, final build 0.2.2+996420f (personal key) on both devices, 2026-10-14. 
 | Push | yes | the owner: "push and rename the repo" | main pushed (3a10263..17d62d8) |
 | Repo rename | yes | same | TheScarletEditor/scarlet-keys renamed to TheScarletEditor/keyward; local remote updated |
 | SECURITY.md | yes | the owner: "Commit as written (Recommended)" (Q61) | docs-only commit, no QA re-run |
-| Push (2026-10-14) | yes | the owner: "Push (Recommended)" | see below |
-| Phone emulator to the personal-key build | yes | the owner: "With the upgrade test (Recommended)" | |
-| Signed public build | | | |
-| GitHub release (draft) | | | |
+| Push (2026-10-14) | yes | the owner: "Push (Recommended)" | main pushed (0a12989..7c8dfdd, 27 commits) |
+| Phone emulator to the personal-key build | yes | the owner: "With the upgrade test (Recommended)" | scarlet_phone runs 0.2.2+996420f on the personal key, same signer as the owner's phone (install.ps1 -NoBuild -NewKey; three earlier tries had the wrong key's password) |
+| Signed public build | yes | the owner ran release.ps1 (2026-10-14) | dist/keyward-0.2.2.apk: v3 signature valid, certificate SHA-256 b2388659...acacd matches 0.2.1; com.thescarletcoder.keys 0.2.2 (5), label Keyward, not debuggable; permissions VIBRATE, USE_BIOMETRIC and the app's receiver permission; SHA-256 297de1af...0a37d matches the .sha256 file; 4,570,616 bytes. Upgrade test on scarlet_phone: public 0.2.1 with Dark, Large keys, Learn my words and vibration on, then the signed 0.2.2 over it with adb install -r: every setting kept, Keyward still the selected keyboard, no crashes |
+| GitHub release (draft) | yes | the owner: "Create the draft (Recommended)"; old titles: "When 0.2.2 goes live (Recommended)" | tag v0.2.2 on 7c8dfdd pushed; draft "Keyward 0.2.2" with keyward-0.2.2.apk and .sha256 |
 | Website update | | | |
 
 ## Wrap-up

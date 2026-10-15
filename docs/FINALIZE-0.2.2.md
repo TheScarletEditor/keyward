@@ -19,8 +19,8 @@ The owner held signing for more work, then asked for /finalize again. Re-run sco
 | 3 | Cleanup | done (re-run 2) | /simplify (reuse, simplification, efficiency, altitude); C5 to C9 applied, two groups skipped (see table); no TODOs, commented-out code or em dashes; TUNING false in release; 72 tests, lint no errors. Earlier:  /simplify (reuse, simplification, efficiency, altitude agents); no TODOs, commented-out code or unused resources added; TUNING false in release; release notes drafted (Q8), README line (Q9), C1 answered (Q10); 49 unit tests, lint no errors |
 | 4 | QA | done (re-run 2) | pass 2 after S2 (stage 5): clean (72 tests, lintRelease no errors, three builds, APK checks unchanged). Pass 1 clean: 72 release unit tests (--rerun-tasks, strict dependency verification), lintRelease no errors and no warnings on lines changed since the hold, release/personal/smoke built, release APK 0.2.2 (5), not debuggable, permissions 0.2.1 plus USE_BIOMETRIC (Stage 1), 4,557,265 bytes (0.2.1: 4,451,441, +2.4%), licenses, dictionary and baseline profile in the APK. Earlier:  pass 3 after S1 (stage 5): clean (49 tests, no lint errors or new warnings, three builds, release APK checks unchanged). Pass 1: QA1 fixed, QA2 asked (Q11); pass 2 clean: 49 release unit tests, lintRelease no errors and no new warnings, release/personal/smoke built, release APK 0.2.2 (5), not debuggable, permissions as 0.2.1, 4,524,313 bytes (0.2.1: 4,451,441, +1.6%), license texts in assets/licenses (C2 done) |
 | 5 | Smoke test | done (re-run 2), 2026-10-14 | The owner is testing the final build (0.2.2+996420f, personal key) on the phone and tablet for a day or two before anything is announced; checklist: scarlet-hq projects/scarlet-keys/0.2.2-DEVICE-TESTS.md. Still to do after it: the phone emulator gets the personal-key build (it has a debug-key test build of the same code), then Stage 6 (push 23 commits, the owner signs, signature check against 0.2.1, GitHub release, old releases renamed (Q53), private vulnerability reporting if SECURITY.md is added, website in its own session) and Stage 7. Launch drafts (not in the repo): a private launch-kit page. | Part 1 (emulators, optimized build signed with the debug key for the emulator only): upgrade from 0.2.1 kept Dark, Large keys, the bubble, learning, a 3-use word, and a 2-use word as a fingerprint (learned at its next use, kept across a screen off, a restart and the move to the new key); 200% text on the new section; small phone at 1.3x and tablet, light and dark; accessibility order of the new section; S2 found and answered (Q51); not checked on an emulator: the letter bubble in password fields (the keyboard is blacked out in screenshots) and real biometrics, both on the owner list. Earlier:  Part 1 (emulators) and Part 2 (the owner: "tests pass"); the renamed build checked by the owner: "looks right" |
-| 6 | Ship | running (resumed 2026-10-14) | pushed; repo renamed to keyward; the owner held signing for slice 7 (your words, saved words, teal Enter); Stages 1 to 5 re-run for it |
-| 7 | Wrap-up | pending | |
+| 6 | Ship | done (2026-10-14) | pushed; repo renamed to keyward; the owner held signing for slice 7 (your words, saved words, teal Enter); Stages 1 to 5 re-run for it |
+| 7 | Wrap-up | done (2026-10-14) | |
 
 ## Findings
 
@@ -192,10 +192,13 @@ Re-run 2, final build 0.2.2+996420f (personal key) on both devices, 2026-10-14. 
 | Phone emulator to the personal-key build | yes | the owner: "With the upgrade test (Recommended)" | scarlet_phone runs 0.2.2+996420f on the personal key, same signer as the owner's phone (install.ps1 -NoBuild -NewKey; three earlier tries had the wrong key's password) |
 | Signed public build | yes | the owner ran release.ps1 (2026-10-14) | dist/keyward-0.2.2.apk: v3 signature valid, certificate SHA-256 b2388659...acacd matches 0.2.1; com.thescarletcoder.keys 0.2.2 (5), label Keyward, not debuggable; permissions VIBRATE, USE_BIOMETRIC and the app's receiver permission; SHA-256 297de1af...0a37d matches the .sha256 file; 4,570,616 bytes. Upgrade test on scarlet_phone: public 0.2.1 with Dark, Large keys, Learn my words and vibration on, then the signed 0.2.2 over it with adb install -r: every setting kept, Keyward still the selected keyboard, no crashes |
 | GitHub release (draft) | yes | the owner: "Create the draft (Recommended)"; old titles: "When 0.2.2 goes live (Recommended)" | tag v0.2.2 on 7c8dfdd pushed; draft "Keyward 0.2.2" with keyward-0.2.2.apk and .sha256 |
-| Website update | | | |
+| Publish | yes | the owner: "Publish the Keyward 0.2.2 release, mark it latest, and retitle the four old releases." | v0.2.2 published, Latest; v0.1.0 to v0.2.1 retitled "Keyward 0.1.0" to "Keyward 0.2.1" |
+| Private vulnerability reporting | yes | the owner: "Turn it on (Recommended)" | enabled on the repo |
+| Website update | yes | its own session, from the launch kit | not started |
 
 ## Wrap-up
 
-- Backups:
-- STATUS-AUDIT updated:
-- hq-log:
+- Backups: skipped for 0.2.2 by the owner on 2026-10-12 ("Skip for 0.2.2 (Recommended)"), recorded in the hub STATUS-AUDIT; no drive has been verified yet.
+- STATUS-AUDIT updated: 2026-10-14 (Keys row, and a note that Keys now uses the personal key on the owner's devices).
+- hq-log: 2026-10-14.
+- Follow-ups: the website update; optional device lines (battery, TalkBack caps-lock hold) not reported.

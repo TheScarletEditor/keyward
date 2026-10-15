@@ -4,7 +4,9 @@ An Android keyboard that never touches the internet. By [The Scarlet Coder](http
 
 ## Download
 
-**[Download Keyward](https://github.com/TheScarletEditor/keyward/releases/latest/download/keyward.apk)** (Android 14 or newer). This link always gets the newest version.
+**[Download Keyward from thescarletcoder.com](https://thescarletcoder.com/tools/keyward/)** (Android 14 or newer), with a step-by-step install guide with pictures.
+
+Or download the file directly: [keyward.apk](https://github.com/TheScarletEditor/keyward/releases/latest/download/keyward.apk). This link always gets the newest version.
 
 1. Open the downloaded file on your phone or tablet and tap Install.
 2. If Android asks, allow your browser to install apps, then go back and tap Install again.

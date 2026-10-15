@@ -2,6 +2,15 @@
 
 An Android keyboard that never touches the internet. By [The Scarlet Coder](https://thescarletcoder.com).
 
+## Download
+
+**[Download Keyward](https://github.com/TheScarletEditor/keyward/releases/latest/download/keyward.apk)** (Android 14 or newer). This link always gets the newest version.
+
+1. Open the downloaded file on your phone or tablet and tap Install.
+2. If Android asks, allow your browser to install apps, then go back and tap Install again.
+3. If you see a warning about an unknown app or developer, tap "Install anyway". Apps from outside the Play Store get this warning.
+4. Open Keyward and follow its two setup steps to turn the keyboard on.
+
 - Standard QWERTY, sized for tablets and phones, in light and dark (or following the system).
 - Long-press for accents: é è ê ë, á à â ä, ó ò ô ö, ú ù û ü, í ì î ï, ñ, ç.
 - On phones, the letter you're pressing shows above your thumb (can be turned off).
@@ -13,7 +22,7 @@ An Android keyboard that never touches the internet. By [The Scarlet Coder](http
 - No network access at all. The build fails if any dependency tries to add it.
 - No ads, no tracking, no account.
 
-## Build and install
+## Build it yourself
 
 Needs the Android SDK and JDK 17 (Android Studio's bundled JDK works).
 `install.ps1` builds the `personal` type: optimized like a release, and signed with your own personal key, whose password it asks for (create the key once with keytool; see the script's header). Debug builds only go on emulators (`-Debug`).

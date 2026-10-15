@@ -5,7 +5,9 @@
 # Run:
 #   powershell -ExecutionPolicy Bypass -File .\release.ps1
 #
-# Output: dist\keyward-<version>.apk and its .sha256, ready for a GitHub release.
+# Output: dist\keyward-<version>.apk and its .sha256, ready for a GitHub release, plus the same file as dist\keyward.apk
+# (and its .sha256): attached to every release under that one name, .../releases/latest/download/keyward.apk always
+# downloads the newest version.
 
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
@@ -31,5 +33,7 @@ Remove-Item "$out.idsig" -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ne 0) { Write-Host "Signature check failed."; exit 1 }
 $hash = (Get-FileHash $out -Algorithm SHA256).Hash.ToLower()
 "$hash  keyward-$version.apk" | Set-Content -Encoding ascii "$out.sha256"
-Write-Host "Done: $out"
+Copy-Item $out .\dist\keyward.apk -Force
+"$hash  keyward.apk" | Set-Content -Encoding ascii .\dist\keyward.apk.sha256
+Write-Host "Done: $out (and the same file as dist\keyward.apk)"
 Write-Host "SHA-256: $hash"

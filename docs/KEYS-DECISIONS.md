@@ -2,6 +2,16 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-10-14 (the owner, after the 0.2.2 release: an easy download)
+
+The owner: "how do we get an easily downloadable version of this to people? My less tech savvy friends will not understand the build part of the github instructions". Picks, word for word.
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q64 | A link that always gets the newest version | "Stable download link (Recommended)" | release.ps1 also writes dist/keyward.apk and its .sha256; every release carries keyward.apk, so .../releases/latest/download/keyward.apk always downloads the newest. 0.2.2 has it attached. | The link redirects to the latest release and serves an APK. |
+| Q65 | Download steps at the top of the README | "Download line in README (Recommended)" | A Download section before everything else: the link and four install steps; "Build and install" renamed "Build it yourself". | README. |
+| Q66 | A foolproof install guide | "Install guide with screenshots (Recommended)" | The website guide shows the unknown-apps prompt, the unknown-app warning and the two setup steps, with emulator screenshots (site session). | The site page. |
+
 ## 2026-10-14 (the owner, /prep resume)
 
 /finalize 0.2.2 is paused at the owner's device testing (Stage 5). These are the owner's picks, word for word. Q62 and Q63 came from the owner's device test results the same day.

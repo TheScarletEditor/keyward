@@ -11,6 +11,7 @@ The owner: "how do we get an easily downloadable version of this to people? My l
 | Q64 | A link that always gets the newest version | "Stable download link (Recommended)" | release.ps1 also writes dist/keyward.apk and its .sha256; every release carries keyward.apk, so .../releases/latest/download/keyward.apk always downloads the newest. 0.2.2 has it attached. | The link redirects to the latest release and serves an APK. |
 | Q65 | Download steps at the top of the README | "Download line in README (Recommended)" | A Download section before everything else: the link and four install steps; "Build and install" renamed "Build it yourself". | README. |
 | Q66 | A foolproof install guide | "Install guide with screenshots (Recommended)" | The website guide shows the unknown-apps prompt, the unknown-app warning and the two setup steps, with emulator screenshots (site session). | The site page. |
+| Q67 | Where the website's Download button gets the app ("Can we host the download on our website? Github is still very technical for people, and i see no download button, just links and lines of code") | "Host it on our site (Recommended)" | The APK is served from the website itself (/downloads/keyward.apk) behind a large Download button; each release copies the new keyward.apk into the site and updates the version and SHA-256 there (site session). The GitHub stable link stays for GitHub visitors. | The site serves the APK with the Android app type; its SHA-256 matches the release. |
 
 ## 2026-10-14 (the owner, /prep resume)
 

@@ -4,7 +4,7 @@ Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-lo
 
 ## 2026-10-14 (the owner, /prep resume)
 
-/finalize 0.2.2 is paused at the owner's device testing (Stage 5). These are the owner's picks, word for word.
+/finalize 0.2.2 is paused at the owner's device testing (Stage 5). These are the owner's picks, word for word. Q62 and Q63 came from the owner's device test results the same day.
 
 | # | Question | Answer (word for word) | Effect | Check |
 |---|---|---|---|---|
@@ -15,6 +15,8 @@ Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-lo
 | Q59 | Backup gate for the rename (no drive verified yet) | "Skip, recorded (Recommended)" | Explicit skip for the folder rename, recorded in the hub's STATUS-AUDIT. | The STATUS-AUDIT skip line. |
 | Q60 | When the rename runs | "Now, while you test (Recommended)" | It runs now, from a session rooted outside this folder; no device install. | No install in that session. |
 | Q61 | SECURITY.md and private vulnerability reporting (proposed by Claude 2026-10-12) | "Add at the ship step (Recommended)" | At Stage 6: the drafted SECURITY.md lands as a docs-only commit before the push (no QA re-run, no app code), and GitHub private vulnerability reporting is turned on with the owner's OK. | The file in the repo; the setting on GitHub. |
+| Q62 | Screenshots on the owner's phone: the whole screenshot is refused ("this app doesn't allow screenshots") instead of a black keyboard | "Keep it, fix the wording (Recommended)" | No code change. Release notes say "hidden from screenshots, screen recordings and screen sharing (some phones block the whole screenshot while the keyboard is up)"; README and Settings already say hidden. | grep: no "blacked out" in the release notes. |
+| Q63 | Copying the website address from The Scarlet Coder card | "Leave it for 0.2.2 (Recommended)" | Card stays information only (D-026). Long press to copy is KB-8 on the backlog. | `KEYS-BACKLOG.md` KB-8. |
 
 ## 2026-10-12 (the owner, slice 8: locked down)
 

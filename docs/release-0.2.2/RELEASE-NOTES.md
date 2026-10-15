@@ -1,7 +1,7 @@
 - Your words: a new page in Settings to search your words, remove one, add one, or forget them all. Deleting always takes two taps, and the page asks for your PIN, fingerprint or face first.
 - Save a word: with Learn my words on, when Keyward doesn't know a word you type, tap "+ Save" above the keys and it's never corrected again. Taking back a correction saves the word too.
 - With Learn my words on, words are learned after three uses, and a capital letter no longer stops a correction: save a name once and it stays as you typed it.
-- Locked down: the keyboard is blacked out in screenshots, screen recordings and screen sharing; no letter bubble or accents in password fields; while your phone is locked only the dictionary is used and your words leave memory; incognito boxes get dictionary suggestions only.
+- Locked down: the keyboard is hidden from screenshots, screen recordings and screen sharing (some phones block the whole screenshot while the keyboard is up); no letter bubble or accents in password fields; while your phone is locked only the dictionary is used and your words leave memory; incognito boxes get dictionary suggestions only.
 - Your words file keeps no typing order, and words used only once or twice aren't stored as text, only as scrambled fingerprints.
 - Enter is now teal; scarlet marks delete buttons.
 - Landscape: the keyboard no longer covers the whole screen, and a phone keeps its phone-sized keys when you turn it.

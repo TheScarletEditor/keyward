@@ -157,6 +157,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
 
     private val handler = Handler(Looper.getMainLooper())
     private var repeating = false
+    private var repeatPointer = -1
     private val repeatRunnable = object : Runnable {
         override fun run() { listener.onDeleteRepeat(); handler.postDelayed(this, 50) }
     }
@@ -431,7 +432,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
                     if (hit >= 0 && hit != cur) {
                         downCount[cur]--; releasedAt[cur] = SystemClock.uptimeMillis()
                         downCount[hit]++; pointerKey[pid] = hit
-                        cancelTimers(); startTimers(pid, hit)
+                        cancelTimers(pid); startTimers(pid, hit)
                         if (bubbleEnabled) {
                             if (keyOf[hit].type == KeyType.CHAR) popups?.bubbleDown(keyRect[hit], bubbleLabel(hit)) else popups?.bubbleUp()
                         }
@@ -443,7 +444,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
                 if (id >= MAX_POINTERS) return true
                 val idx = pointerKey[id]
                 pointerKey[id] = -1
-                cancelTimers()
+                cancelTimers(id) // only this finger's: another may still be holding delete or a long press
                 if (idx >= 0) { downCount[idx] = maxOf(0, downCount[idx] - 1); releasedAt[idx] = SystemClock.uptimeMillis() }
                 if (id == popupPointer) {
                     val pick = popupOptions.getOrNull(popupHighlight)
@@ -468,10 +469,12 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
         when {
             key.type == KeyType.DELETE -> {
                 listener.onKey(key) // delete fires on press, then repeats while held
-                repeating = true
+                handler.removeCallbacks(repeatRunnable)
+                repeating = true; repeatPointer = pointer
                 handler.postDelayed(repeatRunnable, 400)
             }
             key.alt != null || accentsAt(i) != null || key.type == KeyType.SPACE -> {
+                handler.removeCallbacks(longPressRunnable) // one long press at a time: the newest finger's
                 lpPointer = pointer; lpIndex = i
                 handler.postDelayed(longPressRunnable, if (key.type == KeyType.SPACE) 600L else Tunables.int(KeysTuning.LONGPRESS_MS).toLong())
             }
@@ -515,10 +518,12 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
         if (popupPointer >= 0) { popupPointer = -1; popups?.accentsClose() }
     }
 
-    private fun cancelTimers() {
-        if (repeating) { handler.removeCallbacks(repeatRunnable); repeating = false }
-        handler.removeCallbacks(longPressRunnable)
-        lpPointer = -1; lpIndex = -1
+    /** [pointer]'s delete repeat and long press; every finger's when null. */
+    private fun cancelTimers(pointer: Int? = null) {
+        if (repeating && (pointer == null || pointer == repeatPointer)) {
+            handler.removeCallbacks(repeatRunnable); repeating = false; repeatPointer = -1
+        }
+        if (pointer == null || pointer == lpPointer) { handler.removeCallbacks(longPressRunnable); lpPointer = -1; lpIndex = -1 }
     }
 
     /** The keyboard went away mid-touch: no delete repeat or long press may keep running (slice 8). */

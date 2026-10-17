@@ -88,6 +88,7 @@ class KeysService : InputMethodService(), KeyListener {
     override fun onCreate() {
         super.onCreate()
         createdAt = SystemClock.elapsedRealtime()
+        lastNight = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         prefs = KeysPrefs(this)
         KeysTuning.init(this)
         userWords = UserWords.get(this)
@@ -623,7 +624,7 @@ class KeysService : InputMethodService(), KeyListener {
         runCatching { unregisterReceiver(screen) }
         if (::prefs.isInitialized) prefs.unlisten(prefsChanged)
         if (::feedback.isInitialized) feedback.release()
-        // On the worker, which finishes queued work after shutdown(): no file or Keystore work on the main thread (K5).
+        // On UserWords' own thread, which outlives this service: no file or Keystore work on the main thread (K5).
         if (::prefs.isInitialized) userWords.saveInBackground()
         worker.shutdown()
         super.onDestroy()

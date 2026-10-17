@@ -59,7 +59,8 @@ class Dictionary private constructor(
 
     /**
      * Ranked candidates for what's being typed: completions of the prefix plus close misspellings.
-     * [userBoost] lets learned words rank higher; [userWords] are learned words not in the dictionary.
+     * [userBoost] lets learned words rank higher; [userWords] are the user's learned and saved words (lowercase), the
+     * dictionary's among them.
      */
     fun candidates(typed: String, userBoost: (String) -> Int, userWords: Collection<String>): List<Candidate> {
         val t = typed.lowercase()
@@ -97,10 +98,11 @@ class Dictionary private constructor(
                 }
             }
         }
-        // Learned words that aren't in the dictionary.
+        // Learned and saved words (held in lowercase): a word the dictionary has keeps its spelling there ("Monday", "I'm").
+        fun shown(u: String) = find(u).let { if (it >= 0) display[it] else u }
         userWords.forEach { u ->
-            if (u.startsWith(t)) out[u] = Candidate(u, 200f + userBoost(u), 0f, 200)
-            else if (abs(u.length - t.length) <= 1 && distance(tl, letters(u), 1f) <= 1f) out[u] = Candidate(u, 150f + userBoost(u), 1f, 150)
+            if (u.startsWith(t)) out[u] = Candidate(shown(u), 200f + userBoost(u), 0f, 200)
+            else if (abs(u.length - t.length) <= 1 && distance(tl, letters(u), 1f) <= 1f) out[u] = Candidate(shown(u), 150f + userBoost(u), 1f, 150)
         }
         return out.values.sortedByDescending { it.score }
     }

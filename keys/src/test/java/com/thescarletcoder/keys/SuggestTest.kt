@@ -47,6 +47,14 @@ class SuggestTest {
         assertEquals("I'm", dict.autocorrect("im", { dict.isKnown(it) }, { 0 }, listOf("i'm")))
     }
 
+    @Test fun learnedDictionaryWordsKeepTheirCapital() {
+        // Learned words are held in lowercase; the dictionary's spelling wins.
+        val learned = listOf("london", "i'm")
+        assertEquals("London", dict.candidates("lond", { 0 }, learned).first { it.word.equals("london", ignoreCase = true) }.word)
+        assertEquals("I'm", dict.candidates("i'", { 0 }, learned).first { it.word.equals("i'm", ignoreCase = true) }.word)
+        assertEquals("London", dict.autocorrect("lomdon", { dict.isKnown(it) }, { 0 }, learned))
+    }
+
     @Test fun modernNamesAreKnown() {
         listOf("macbook", "Macbook", "MacBook", "airpods", "uber", "venmo", "TikTok", "Keyward", "keyward").forEach { assertNull(it, fix(it)) }
         val c = dict.candidates("macbook", { 0 }, emptyList()).map { it.word }

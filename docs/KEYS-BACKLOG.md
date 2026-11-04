@@ -27,14 +27,19 @@ Before fixing: reproduce each on an emulator and write a failing JVM test (Sugge
 
 - KB-8: The Scarlet Coder card in Settings shows the website address but can't be copied. Owner, Q63: "Leave it for 0.2.2". Later: long press the card to copy the address, with a "Copied" message (the owner's call which version).
 
-## From the common-issues audit (proposed, 2026-11-04)
+## From the common-issues audit (2026-11-04)
 
-Fixed in the audit's draft PR: autocorrect leaving numbers, handles, web addresses and names alone; spaces and periods after a picked suggestion; double space only for two quick taps in plain text; phone, date, email and web address keys; apostrophe from ?123 back to letters; fast typing never swapping letters. These are behaviour changes the owner would notice either way, so they wait for the owner's call:
+Fixed in the audit's draft PR: autocorrect leaving numbers, handles, web addresses and names alone; spaces and periods after a picked suggestion; double space only for two quick taps in plain text; phone, date, email and web address keys; apostrophe from ?123 back to letters; fast typing never swapping letters.
 
-- KB-9: words in all capitals are corrected like any other ("CINC" becomes "CIBC"). Proposed: leave all-caps words alone (acronyms), but still correct while caps lock is on.
-- KB-10: after typing a number or symbol on ?123, space keeps ?123 up. Android's own keyboard goes back to letters after the space. Proposed: do the same.
-- KB-11: holding backspace deletes one character at a time, forever. Proposed: after about two seconds of holding, delete whole words.
-- KB-12: a fix applied by Enter or Send can't be taken back (no undo, and in a search or chat box it's already sent). Proposed: no autocorrect on Enter when Enter sends, searches or goes; keep it for a new line.
-- KB-13: a space typed by hand, then "," or ".", leaves "word ,". Proposed: move . , ? ! before a space typed right before them too, as is done now after a picked suggestion.
-- KB-14: no way to forget a learned word from the strip. Proposed: long press a suggestion to remove it from your words (with a one-line confirm).
+The owner's picks from the open questions (2026-11-04: "Build all except 5"), built in the same draft PR:
+
+- KB-9 (built): words typed in capitals are left as typed ("CINC" stays "CINC"); with caps lock on they're still corrected.
+- KB-10 (built): after typing on ?123, space or Enter goes back to letters, like Android's own keyboard.
+- KB-11 (built): holding backspace for about two seconds speeds up to whole words.
+- KB-12 (built): no autocorrect from an Enter that sends, searches or goes; a new line still corrects.
+- KB-13 (skipped by the owner): a space typed by hand, then "," or ".", still leaves "word ,".
+- KB-14 (built): long press a learned or saved word on the strip to remove it from your words, with a one-line confirm.
+
+Still open:
+
 - KB-15: wants, not bugs: slide on the space bar to move the cursor; an emoji key; long press "." for more punctuation.

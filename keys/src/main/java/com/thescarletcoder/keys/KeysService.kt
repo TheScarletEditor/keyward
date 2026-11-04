@@ -521,8 +521,9 @@ class KeysService : InputMethodService(), KeyListener {
         val before = ic.getTextBeforeCursor(original.length + MAX_WORD, 0)?.toString() ?: return false
         if (!before.endsWith(original)) return false
         val (boost, learned, known) = wordsFor(d, learnOn, userWordsOn)
+        // The word after the period always starts lowercase here, so autocorrect's fix needs no case matching.
         val (left, right) = Words.missedSpace(before.dropLast(original.length), original, known) {
-            d.autocorrect(it, known, boost, learned)?.let { fix -> matchCase(it, fix) }
+            d.autocorrect(it, known, boost, learned)
         } ?: return false
         val typed = "$left.$original"
         if (typed.lowercase() in kept) return false

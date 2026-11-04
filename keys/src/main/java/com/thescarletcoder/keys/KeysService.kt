@@ -54,6 +54,8 @@ class KeysService : InputMethodService(), KeyListener {
     private var autocorrectOn = false
     /** The word being typed is joined to the text before it ("2nd", "@sam", "site.com"): never autocorrected. */
     private var joined = false
+    /** Every letter of the word being typed so far was typed with caps lock on (see Words.isAcronym). */
+    private var capsLockWord = false
     private var learnOn = false
     /** The user's saved (and, with [learnOn], learned) words may be suggested here: not while locked or in private fields (Q33, Q37). */
     private var userWordsOn = false
@@ -373,6 +375,9 @@ class KeysService : InputMethodService(), KeyListener {
                 val look = if (composing.isEmpty()) lookBack() else null
                 // One batch, so the editor reports a single change and never a moment with no word being typed.
                 if (composing.isEmpty()) joined = look?.joined ?: false
+                // A word picked back up wasn't seen being typed: its capitals are taken as an acronym.
+                if (composing.isEmpty()) capsLockWord = keyboard.shift == Shift.LOCKED && (look == null || look.word.isEmpty())
+                else if (keyboard.shift != Shift.LOCKED) capsLockWord = false
                 ic?.beginBatchEdit()
                 if (composing.isEmpty() && look != null && look.word.isNotEmpty()) takeUp(look, look.word.length)
                 composing.append(s)
@@ -532,7 +537,7 @@ class KeysService : InputMethodService(), KeyListener {
             ic.finishComposingText()
             ic.deleteSurroundingText(1, 0)
             val resumed = look.word.length > 1
-            if (resumed) { takeUp(look, look.word.length - 1); joined = look.joined }
+            if (resumed) { takeUp(look, look.word.length - 1); joined = look.joined; capsLockWord = false }
             ic.endBatchEdit()
             if (resumed) refreshSuggestions() else strip.clear()
             updateAutoCaps()
@@ -611,7 +616,7 @@ class KeysService : InputMethodService(), KeyListener {
         val my = ++seq
         val learnNow = learnOn
         val savedNow = userWordsOn
-        val correctNow = autocorrectOn && !joined
+        val correctNow = autocorrectOn && !joined && !Words.isAcronym(typed, capsLockWord)
         val keptNow = HashSet(kept)
         worker.execute {
             if (my != seq) return@execute
@@ -649,7 +654,7 @@ class KeysService : InputMethodService(), KeyListener {
 
     /** The fix for a finished word: reuse the background result if it's for this exact word, else work it out now. */
     private fun fixFor(original: String): String? {
-        if (!autocorrectOn || joined || original.lowercase() in kept) return null
+        if (!autocorrectOn || joined || Words.isAcronym(original, capsLockWord) || original.lowercase() in kept) return null
         if (pickFor == original) return autocorrectPick
         val d = dict ?: return null
         val (boost, learned, known) = wordsFor(d, learnOn, userWordsOn)

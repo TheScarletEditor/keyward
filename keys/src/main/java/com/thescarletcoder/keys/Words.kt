@@ -39,6 +39,12 @@ object Words {
     fun correctsOn(sep: String): Boolean = sep == " " || sep == "\n" || (sep.length == 1 && sep[0] in ENDERS)
     private const val ENDERS = ".,?!;)]}\"”’…-"
 
+    /**
+     * A word typed in capitals (two letters or more, none lowercase) without caps lock: an acronym or a name like
+     * "CINC" (it became "CIBC"), left as typed. With caps lock on it's shouting, corrected like any word ("TEH" to "THE").
+     */
+    fun isAcronym(word: String, capsLock: Boolean) = !capsLock && word.count { it.isLetter() } >= 2 && word.none { it.isLowerCase() }
+
     /** Two space taps closer together than this make ". " (Android's own keyboard uses the same 1.1 seconds). */
     const val DOUBLE_SPACE_MS = 1100L
 

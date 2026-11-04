@@ -34,4 +34,13 @@ class TypingRulesTest {
         // ":" and ";" start smileys (":)"), and brackets and quotes open things: they stay after the space.
         listOf(":", ";", "(", ")", "\"", "'", "-", " ").forEach { assertFalse(it, Words.swapsWithSpace(it)) }
     }
+
+    @Test fun capitalsAreAnAcronymUnlessCapsLockIsOn() {
+        // "CINC" became "CIBC": typed in capitals with Shift, it's left as typed.
+        listOf("CINC", "NASA", "OK", "I'M").forEach { assertTrue(it, Words.isAcronym(it, capsLock = false)) }
+        // With caps lock it's shouting, corrected like any word.
+        assertFalse(Words.isAcronym("TEH", capsLock = true))
+        // Not all capitals, or a single letter: corrected as before.
+        listOf("Teh", "teh", "CInc", "I", "A").forEach { assertFalse(it, Words.isAcronym(it, capsLock = false)) }
+    }
 }

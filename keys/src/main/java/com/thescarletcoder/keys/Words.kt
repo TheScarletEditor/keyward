@@ -57,7 +57,57 @@ object Words {
         return before.length - i
     }
 
-    /** Two space taps closer together than this make ". " (Android's own keyboard uses the same 1.1 seconds). */
+    /**
+     * A period typed instead of a space (they sit side by side): "something.thit" is "something" and "thit" run
+     * together (KB-17). [beforeWord] is the text before the word being typed, [word]; [known] says whether a word is
+     * a real one and [fix] is autocorrect's fix for one that isn't. Returns the two words to put in with a space,
+     * or null to leave it all as typed. Never for:
+     * - a web address, domain, email, handle, tag or path: the word before the period starts right after a space
+     *   (not after "@", "#", "/", ":" or another "."), and the word after it isn't a domain ending or file type;
+     * - abbreviations: one letter either side ("e.g", "i.e", "a.m", "U.S") or a known short form ("etc", "Mr");
+     * - numbers (decimals, versions, times): only letters either side;
+     * - a capital after the period ("end.The", "ASP.NET"): that period was meant.
+     */
+    fun missedSpace(beforeWord: CharSequence, word: String, known: (String) -> Boolean, fix: (String) -> String?): Pair<String, String>? {
+        if (word.length < 2 || !word.all { it.isLetter() } || !word[0].isLowerCase()) return null
+        if (word.lowercase() in NOT_AFTER_DOT) return null
+        val n = beforeWord.length
+        if (n < 3 || beforeWord[n - 1] != '.') return null
+        var i = n - 1
+        while (i > 0 && beforeWord[i - 1].isLetter()) i--
+        val left = beforeWord.subSequence(i, n - 1).toString()
+        if (left.length < 2) return null
+        val c = if (i > 0) beforeWord[i - 1] else null
+        if (c != null && !c.isWhitespace() && c !in LEFT_OPENERS) return null
+        if (left.lowercase() in SHORT_FORMS || left.lowercase() in NOT_AFTER_DOT || !known(left)) return null
+        val right = if (known(word)) word else fix(word) ?: return null
+        return left to right
+    }
+
+    /**
+     * Domain endings and file types: "site.com", "notes.txt", "Node.js" keep their period. Not endings that are
+     * everyday words ("it", "me", "us"): "do.it" is a missed space far more often than an Italian web address.
+     */
+    private val NOT_AFTER_DOT = setOf(
+        "com", "org", "net", "edu", "gov", "mil", "int", "io", "app", "dev", "ai", "co", "uk", "ca", "au", "de",
+        "fr", "es", "nl", "eu", "tv", "ly", "gg", "info", "biz", "xyz", "html", "htm", "php", "asp", "aspx", "js",
+        "ts", "kt", "py", "java", "json", "xml", "css", "md", "txt", "csv", "pdf", "doc", "docx", "xls", "xlsx",
+        "ppt", "pptx", "png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "mov", "avi", "wav", "zip", "rar", "exe",
+        "apk", "dmg", "iso", "ini", "cfg", "yaml", "yml", "sh", "bat", "sql", "db", "bak", "tmp", "lrc", "srt",
+        "epub", "mobi", "ics",
+    )
+
+    private const val LEFT_OPENERS = "([{\"“‘«"
+
+    /** Short forms that take a period: "etc.", "Mr.", "Jan.". The word after them stays joined. */
+    private val SHORT_FORMS = setOf(
+        "mr", "mrs", "ms", "dr", "st", "jr", "sr", "vs", "etc", "inc", "ltd", "corp", "prof", "gen", "sgt", "capt",
+        "lt", "col", "rev", "hon", "approx", "dept", "est", "fig", "vol", "no", "ft", "oz", "lb", "lbs", "min",
+        "max", "misc", "ave", "blvd", "rd", "mt", "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept",
+        "oct", "nov", "dec", "mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun", "www", "ie", "eg",
+    )
+
+    /** Two space taps than this make ". " (Android's own keyboard uses the same 1.1 seconds). */
     const val DOUBLE_SPACE_MS = 1100L
 
     /** Punctuation that goes before the space a picked suggestion added: "word " then "." is "word. ", not "word .". */

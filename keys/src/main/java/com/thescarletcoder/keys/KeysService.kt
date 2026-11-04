@@ -29,6 +29,7 @@ class KeysService : InputMethodService(), KeyListener {
         const val TAG = "ScarletKeys"
         /** Longest word Keys picks back up when the cursor returns to a word's end. */
         const val MAX_WORD = 48
+        private val MISSED_SPACE_ON = setOf(" ", ",", "?", "!", ";")
     }
 
     private lateinit var prefs: KeysPrefs
@@ -464,6 +465,7 @@ class KeysService : InputMethodService(), KeyListener {
         val now = SystemClock.uptimeMillis()
         if (composing.isNotEmpty()) {
             val original = composing.toString()
+            if (missedSpaceFix(ic, original, sep)) { lastSpaceAt = if (sep == " ") now else 0L; updateAutoCaps(); return }
             // "i." stays as typed: "i.e." and list markers (the owner, 2026-10-12). "@", "/", ":" and the like join
             // the word to more (an email, a path, "https:"), so they never correct it.
             val final = (if ((sep == "." && original == "i") || !Words.correctsOn(sep)) null else fixFor(original)) ?: original
@@ -506,6 +508,38 @@ class KeysService : InputMethodService(), KeyListener {
             }
         }
         updateAutoCaps()
+    }
+
+    /**
+     * "something.thit" then space: the period was a missed space, so it becomes "something this " (KB-17). Applied like
+     * any autocorrect, so one backspace puts back exactly what was typed. Plain text with autocorrect on only, and only
+     * on a space or , ? ! ; (a "." "@" or "/" carries on a web address or email). True when it did it.
+     */
+    private fun missedSpaceFix(ic: android.view.inputmethod.InputConnection, original: String, sep: String): Boolean {
+        if (!autocorrectOn || !proseField || !joined || sep !in MISSED_SPACE_ON) return false
+        val d = dict ?: return false
+        val before = ic.getTextBeforeCursor(original.length + MAX_WORD, 0)?.toString() ?: return false
+        if (!before.endsWith(original)) return false
+        val (boost, learned, known) = wordsFor(d, learnOn, userWordsOn)
+        val (left, right) = Words.missedSpace(before.dropLast(original.length), original, known) {
+            d.autocorrect(it, known, boost, learned)?.let { fix -> matchCase(it, fix) }
+        } ?: return false
+        val typed = "$left.$original"
+        if (typed.lowercase() in kept) return false
+        val fixed = "$left $right"
+        // Read before writing: where the cursor is, so the undo knows where it applies.
+        val at = cursorInField(ic)?.let { it - typed.length + fixed.length + sep.length } ?: -1
+        ic.beginBatchEdit()
+        ic.finishComposingText()
+        ic.deleteSurroundingText(typed.length, 0)
+        ic.commitText(fixed, 1)
+        ic.commitText(sep, 1)
+        ic.endBatchEdit()
+        learn(right)
+        composing.clear()
+        strip.clear()
+        undo = Undo(typed, fixed, sep, at)
+        return true
     }
 
     /** The cursor's position in the field, or null when there's a selection or the editor doesn't say. */

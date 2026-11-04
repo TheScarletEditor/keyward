@@ -34,6 +34,17 @@ class Dictionary private constructor(
         Array(26) { len -> groups.filterKeys { it ushr 16 == len }.mapKeys { (k, _) -> (k and 0xFFFF).toChar() } }
     }
 
+    /**
+     * Words with an apostrophe, by their letters alone ("ill" -> "I'll", "dont" -> "don't", "obrien" -> "O'Brien"), so
+     * a word typed without its apostrophe always finds them. Built from the dictionary, not a hand list. Possessives
+     * ("band's", "girls'") are left out: "bands" is far more often the plural. See [isContraction].
+     */
+    private val withoutApostrophe: Map<String, IntArray> = run {
+        val found = HashMap<String, MutableList<Int>>()
+        lower.forEachIndexed { i, w -> if (isContraction(w)) found.getOrPut(letters(w)) { ArrayList(1) } += i }
+        found.mapValues { (_, v) -> v.toIntArray() }
+    }
+
     val size get() = lower.size
 
     fun isKnown(word: String): Boolean = find(word.lowercase()) >= 0
@@ -104,6 +115,18 @@ class Dictionary private constructor(
             if (u.startsWith(t)) out[u] = Candidate(shown(u), 200f + userBoost(u), 0f, 200)
             else if (abs(u.length - t.length) <= 1 && distance(tl, letters(u), 1f) <= 1f) out[u] = Candidate(shown(u), 150f + userBoost(u), 1f, 150)
         }
+        // Typed with the apostrophe left out ("ill", "wont", "well"): that word with its apostrophe is almost certainly
+        // what was meant, so it ranks first, ahead of learned words a slip away (which otherwise tie with it, so it
+        // could drop out of the strip). Applied last so a learned "i'll" can't pull it back down. Whether to replace
+        // the typed word is still [autocorrect]'s call: a real word ("ill", "well") is never replaced.
+        if (t.indexOf('\'') < 0) withoutApostrophe[tl]?.forEach { idx ->
+            if (offensive[idx]) return@forEach
+            val f = freq[idx] + userBoost(lower[idx])
+            val score = CONTRACTION_SCORE + f
+            // Two spellings of one word ("o'clock", "O'Clock"): the commoner one.
+            val prev = out[lower[idx]]
+            if (prev == null || prev.score < CONTRACTION_SCORE || prev.score < score) out[lower[idx]] = Candidate(display[idx], score, 0.1f, f)
+        }
         return out.values.sortedByDescending { it.score }
     }
 
@@ -140,6 +163,22 @@ class Dictionary private constructor(
         private const val DISTANCE_WEIGHT = 150f
         /** Only autocorrect to reasonably common words. */
         private const val MIN_FIX_FREQ = 50
+        /** A word typed without its apostrophe: above anything else (learned words reach 200 plus a boost of up to 80). */
+        private const val CONTRACTION_SCORE = 300f
+
+        /** "'s" that stands for "is", "has" or "us" after these, not a possessive: "it's", "what's", "let's". */
+        private val S_CONTRACTIONS = setOf("it", "that", "what", "let", "he", "she", "there", "here", "who", "where", "how", "when", "why")
+
+        /**
+         * A word whose apostrophe is easy to leave out: every apostrophe word in the dictionary ("don't", "I'll",
+         * "you're", "o'clock", "O'Brien") except possessives ("band's", "girls'"), which would crowd plurals.
+         */
+        internal fun isContraction(lower: String): Boolean {
+            if (lower.indexOf('\'') <= 0) return false
+            if (lower.endsWith("s'")) return false
+            if (lower.endsWith("'s")) return lower.dropLast(2) in S_CONTRACTIONS
+            return true
+        }
 
         /** "im", "ive"... typed as such: a form the "I" rule fixes by more than a capital (not "i'm" or "I'm"). */
         fun fixesToI(word: String): Boolean = I_WORDS[word.lowercase()]?.let { it.lowercase() != word.lowercase() } ?: false

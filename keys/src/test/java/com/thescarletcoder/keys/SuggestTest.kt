@@ -86,6 +86,64 @@ class SuggestTest {
         }
     }
 
+    private fun top(w: String, learned: List<String> = emptyList()) =
+        dict.candidates(w, { if (it in learned) 80 else 0 }, learned).first().word
+
+    /** Learned words one slip from the contractions below, each at the most boost a learned word gets. */
+    private val nearMisses = listOf("all", "will", "it", "is", "want", "went", "here", "where", "help", "hello", "we", "can", "i", "hell", "well")
+
+    @Test fun contractionsWithoutTheApostrophe() {
+        // The word with its apostrophe left out finds the contraction, first in line after the typed word, even when
+        // learned words are a slip away (they used to tie with it, so it could drop off the strip).
+        mapOf(
+            "ill" to "I'll", "im" to "I'm", "ive" to "I've", "id" to "I'd", "dont" to "don't", "youre" to "you're",
+            "wont" to "won't", "cant" to "can't", "its" to "it's", "well" to "we'll", "were" to "we're", "wed" to "we'd",
+            "hell" to "he'll", "shell" to "she'll", "theyre" to "they're", "didnt" to "didn't", "isnt" to "isn't",
+            "lets" to "let's", "whats" to "what's", "shed" to "she'd",
+        ).forEach { (typed, want) ->
+            assertEquals(typed, want, top(typed))
+            assertEquals("$typed with learned words", want, top(typed, nearMisses))
+        }
+        // Built from the dictionary, not a list: rarer ones and names come too.
+        assertEquals("o'clock", top("oclock"))
+        assertEquals("O'Brien", top("obrien"))
+    }
+
+    @Test fun contractionsKeepTheCapitalI() {
+        listOf("ill", "im", "ive", "id").forEach { assertTrue(it, top(it).startsWith("I'")) }
+        assertEquals("I'll", Words.matchCase("ill", top("ill")))
+        assertEquals("I'll", Words.matchCase("Ill", top("Ill")))
+    }
+
+    @Test fun realWordsAreNeverReplacedByTheirContraction() {
+        // Suggested only: each is a word of its own, so space keeps what was typed.
+        listOf("ill", "well", "were", "wed", "its", "id", "hell", "shell", "cant", "wont", "lets", "shed").forEach {
+            assertNull(it, fix(it))
+            assertNull("$it with learned words", dict.autocorrect(it, { w -> dict.isKnown(w) }, { 80 }, nearMisses))
+        }
+        assertNull("well on its own", fix("well"))
+    }
+
+    @Test fun unambiguousContractionsAutocorrect() {
+        mapOf("dont" to "don't", "youre" to "you're", "didnt" to "didn't", "isnt" to "isn't", "theyre" to "they're", "im" to "I'm").forEach { (typed, want) ->
+            assertEquals(typed, want, fix(typed))
+            // A learned "won't" or "want" a slip from "dont" used to tie with "don't" and could win the fix.
+            assertEquals("$typed with learned words", want, dict.autocorrect(typed, { dict.isKnown(it) }, { 80 }, nearMisses + "won't"))
+        }
+    }
+
+    @Test fun possessivesDontCrowdPlurals() {
+        assertFalse(Dictionary.isContraction("band's")); assertFalse(Dictionary.isContraction("girls'"))
+        assertTrue(Dictionary.isContraction("it's")); assertTrue(Dictionary.isContraction("don't")); assertTrue(Dictionary.isContraction("o'clock"))
+        assertFalse(Dictionary.isContraction("'tis")) // leading apostrophe: nothing typed leaves it out
+        assertEquals("bands", top("bands"))
+    }
+
+    @Test fun typedWithTheApostropheIsUnchanged() {
+        assertEquals("I'll", fix("i'll"))
+        assertEquals("don't", top("don't"))
+    }
+
     @Test fun fastEnoughPerKeystroke() {
         val words = listOf("becuase", "tomorow", "recieve", "seperate", "definately", "accomodate", "wierd", "goverment")
         val t0 = System.nanoTime()

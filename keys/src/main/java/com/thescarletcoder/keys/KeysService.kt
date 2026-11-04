@@ -485,7 +485,7 @@ class KeysService : InputMethodService(), KeyListener {
         // "+ Save" only for the word as typed right now: never a word the strip showed a moment earlier.
         if (save && word != composing.toString()) return
         pickFor = null
-        val final = if (save) word else if (composing.isNotEmpty()) matchCase(composing.toString(), word) else word
+        val final = if (save) word else if (composing.isNotEmpty()) Words.matchCase(composing.toString(), word) else word
         ic.commitText("$final ", 1)
         learn(final)
         if (save && learnOn) userWords.keep(final)
@@ -538,9 +538,9 @@ class KeysService : InputMethodService(), KeyListener {
             val started = System.nanoTime()
             val (boost, learned, known) = wordsFor(d, learnNow, savedNow)
             val cands = d.candidates(typed, boost, learned)
-            val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned, cands)?.let { matchCase(typed, it) } else null
+            val pick = if (correctNow && typed.lowercase() !in keptNow) d.autocorrect(typed, known, boost, learned, cands)?.let { Words.matchCase(typed, it) } else null
             // Lazily: only the first few are ever used, so the rest are never converted.
-            val ranked = cands.asSequence().map { matchCase(typed, it.word) }.distinct()
+            val ranked = cands.asSequence().map { Words.matchCase(typed, it.word) }.distinct()
             val isKnown by lazy { known(typed) } // only when there's no fix to offer
             // A word Keyward doesn't know, offered as typed with "+ Save" (Q28): saved, it's never corrected again.
             val offerSave = learnNow && !isKnown && Words.isWord(typed) && userWords.canKeep
@@ -573,7 +573,7 @@ class KeysService : InputMethodService(), KeyListener {
         if (pickFor == original) return autocorrectPick
         val d = dict ?: return null
         val (boost, learned, known) = wordsFor(d, learnOn, userWordsOn)
-        return d.autocorrect(original, known, boost, learned)?.let { matchCase(original, it) }
+        return d.autocorrect(original, known, boost, learned)?.let { Words.matchCase(original, it) }
     }
 
     private data class UserLookup(val boost: (String) -> Int, val words: Collection<String>, val known: (String) -> Boolean)
@@ -605,13 +605,6 @@ class KeysService : InputMethodService(), KeyListener {
         // "im", "ive" and the like are learned only by taking the fix back (the undo records them), never just by
         // typing them where autocorrect is off (R12).
         if (learnOn && (autocorrectOn || !Dictionary.fixesToI(word))) userWords.record(word)
-    }
-
-    /** Keep the user's capitalisation: "Hello" -> "Hello", "HELLO" -> "HELLO". */
-    private fun matchCase(typed: String, word: String): String = when {
-        typed.length > 1 && typed.all { !it.isLetter() || it.isUpperCase() } -> word.uppercase()
-        typed.firstOrNull()?.isUpperCase() == true -> word.replaceFirstChar { it.uppercaseChar() }
-        else -> word
     }
 
     private fun isPassword(cls: Int, variation: Int): Boolean =

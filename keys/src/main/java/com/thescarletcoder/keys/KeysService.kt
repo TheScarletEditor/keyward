@@ -64,6 +64,8 @@ class KeysService : InputMethodService(), KeyListener {
     private var numeric = false
     /** The letters layout for this field: "@" in email fields, "/" in web address fields. */
     private var lettersRows = Layouts.letters
+    /** Something was typed on ?123 since it came up: the next space or Enter goes back to letters (KB-10). */
+    private var typedOnSymbols = false
     /** Plain text, where a double space makes ". ": not password, email, web address or no-suggestion fields. */
     private var proseField = false
     /** When space was last tapped (0: the last key wasn't space), so only two quick taps make ". ". */
@@ -241,6 +243,7 @@ class KeysService : InputMethodService(), KeyListener {
             variation == InputType.TYPE_TEXT_VARIATION_URI -> Layouts.lettersUrl
             else -> Layouts.letters
         }
+        typedOnSymbols = false
         keyboard.rows = when (cls) {
             InputType.TYPE_CLASS_PHONE -> Layouts.phonepad
             InputType.TYPE_CLASS_DATETIME -> Layouts.datepad
@@ -331,18 +334,29 @@ class KeysService : InputMethodService(), KeyListener {
             KeyType.CHAR -> {
                 typeChar(if (keyboard.shift != Shift.OFF && key.label[0].isLetter()) key.label.uppercase() else key.label, afterPick)
                 // An apostrophe from ?123 goes back to letters, so "don" ?123 ' "t" needs no ABC tap (as on Android's own keyboard).
-                if (key.label == "'" && (keyboard.rows === Layouts.symbols || keyboard.rows === Layouts.symbols2)) keyboard.rows = lettersRows
+                if (onSymbols()) {
+                    if (key.label == "'") { keyboard.rows = lettersRows; typedOnSymbols = false } else typedOnSymbols = true
+                }
             }
-            KeyType.SPACE -> separator(" ", afterPick)
+            // After typing on ?123 ("5", "$5"), the space or Enter that ends it goes back to letters (KB-10).
+            KeyType.SPACE -> { separator(" ", afterPick); backToLetters() }
             KeyType.DELETE -> delete()
-            KeyType.ENTER -> enter()
+            KeyType.ENTER -> { enter(); backToLetters() }
             KeyType.SHIFT -> shiftTap()
-            KeyType.SYMBOLS -> { keyboard.rows = Layouts.symbols }
+            // From letters, a fresh start; from the second symbols page, the same stretch of symbols.
+            KeyType.SYMBOLS -> { if (keyboard.rows !== Layouts.symbols2) typedOnSymbols = false; keyboard.rows = Layouts.symbols }
             KeyType.SYMBOLS2 -> { keyboard.rows = Layouts.symbols2 }
-            KeyType.LETTERS -> { keyboard.rows = lettersRows; updateAutoCaps() }
+            KeyType.LETTERS -> { keyboard.rows = lettersRows; typedOnSymbols = false; updateAutoCaps() }
             KeyType.HIDE -> { finishComposing(); requestHideSelf(0) }
             KeyType.SPACER -> Unit
         }
+    }
+
+    private fun onSymbols() = keyboard.rows === Layouts.symbols || keyboard.rows === Layouts.symbols2
+
+    private fun backToLetters() {
+        if (typedOnSymbols && onSymbols()) { keyboard.rows = lettersRows; updateAutoCaps() }
+        typedOnSymbols = false
     }
 
     override fun onAlt(text: String) {

@@ -39,6 +39,12 @@ object Words {
     fun correctsOn(sep: String): Boolean = sep == " " || sep == "\n" || (sep.length == 1 && sep[0] in ENDERS)
     private const val ENDERS = ".,?!;)]}\"”’…-"
 
+    /** Two space taps closer together than this make ". " (Android's own keyboard uses the same 1.1 seconds). */
+    const val DOUBLE_SPACE_MS = 1100L
+
+    /** Punctuation that goes before the space a picked suggestion added: "word " then "." is "word. ", not "word .". */
+    fun swapsWithSpace(sep: String) = sep.length == 1 && sep[0] in ".,?!"
+
     /**
      * The word [before] ends with (the text right before the cursor), leading apostrophes dropped; "" when it doesn't
      * end with one. Null when the whole of [before] is word characters and it is [max] long: the word may be longer

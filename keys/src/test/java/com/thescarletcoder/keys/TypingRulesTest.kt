@@ -28,4 +28,10 @@ class TypingRulesTest {
         // "https:" became "http:"; "@", "/" and "_" join a word to more.
         listOf(":", "@", "/", "_", "#", "=", "&", "+", "*", "\\").forEach { assertFalse(it, Words.correctsOn(it)) }
     }
+
+    @Test fun sentencePunctuationGoesBeforeAPickedSuggestionsSpace() {
+        listOf(".", ",", "?", "!").forEach { assertTrue(it, Words.swapsWithSpace(it)) }
+        // ":" and ";" start smileys (":)"), and brackets and quotes open things: they stay after the space.
+        listOf(":", ";", "(", ")", "\"", "'", "-", " ").forEach { assertFalse(it, Words.swapsWithSpace(it)) }
+    }
 }

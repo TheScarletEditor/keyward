@@ -60,6 +60,15 @@ class KeysService : InputMethodService(), KeyListener {
     private var enterAction = EditorInfo.IME_ACTION_UNSPECIFIED
     private var useEnterAction = false
     private var numeric = false
+    /** Plain text, where a double space makes ". ": not password, email, web address or no-suggestion fields. */
+    private var proseField = false
+    /** When space was last tapped (0: the last key wasn't space), so only two quick taps make ". ". */
+    private var lastSpaceAt = 0L
+    /**
+     * Set right after a suggestion is picked: where the space it added ends in the field (-1 when the editor doesn't
+     * say), null when there's none. Only the next key that types sees it.
+     */
+    private var pickSpaceAt: Int? = null
 
     private val composing = StringBuilder()
     /** The field this keyboard last set up, so a restart of the same field keeps undo and the words taken back. */
@@ -194,6 +203,9 @@ class KeysService : InputMethodService(), KeyListener {
             InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS, InputType.TYPE_TEXT_VARIATION_FILTER,
         )
         numeric = cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE || cls == InputType.TYPE_CLASS_DATETIME
+        proseField = cls == InputType.TYPE_CLASS_TEXT && !password && !addressy && !noSuggestFlag
+        lastSpaceAt = 0L
+        pickSpaceAt = null
 
         // A name field: suggestions, but names are never corrected into other words.
         val personName = cls == InputType.TYPE_CLASS_TEXT && variation == InputType.TYPE_TEXT_VARIATION_PERSON_NAME
@@ -295,9 +307,14 @@ class KeysService : InputMethodService(), KeyListener {
     }
 
     override fun onKey(key: Key) {
+        // Shift and the layout keys pass these on to the next key ("?123" then "!" right after a picked suggestion).
+        val passesOn = key.type == KeyType.SHIFT || key.type == KeyType.SYMBOLS || key.type == KeyType.SYMBOLS2 || key.type == KeyType.LETTERS
+        val afterPick = pickSpaceAt
+        if (!passesOn) pickSpaceAt = null
+        if (!passesOn && key.type != KeyType.SPACE) lastSpaceAt = 0L
         when (key.type) {
-            KeyType.CHAR -> typeChar(if (keyboard.shift != Shift.OFF && key.label[0].isLetter()) key.label.uppercase() else key.label)
-            KeyType.SPACE -> separator(" ")
+            KeyType.CHAR -> typeChar(if (keyboard.shift != Shift.OFF && key.label[0].isLetter()) key.label.uppercase() else key.label, afterPick)
+            KeyType.SPACE -> separator(" ", afterPick)
             KeyType.DELETE -> delete()
             KeyType.ENTER -> enter()
             KeyType.SHIFT -> shiftTap()
@@ -309,7 +326,11 @@ class KeysService : InputMethodService(), KeyListener {
         }
     }
 
-    override fun onAlt(text: String) = typeChar(text)
+    override fun onAlt(text: String) {
+        val afterPick = pickSpaceAt
+        pickSpaceAt = null; lastSpaceAt = 0L
+        typeChar(text, afterPick)
+    }
     override fun onDeleteRepeat() {
         feedback.deleteRepeat(keyboard, vibrateOn)
         delete()
@@ -323,7 +344,8 @@ class KeysService : InputMethodService(), KeyListener {
 
     // ---- typing ----
 
-    private fun typeChar(s: String) {
+    /** [afterPick]: the space a picked suggestion just added (see [pickSpaceAt]). */
+    private fun typeChar(s: String, afterPick: Int? = null) {
         val c = s[0]
         val wordChar = c.isLetter() || (c == '\'' && composing.isNotEmpty())
         when {
@@ -345,7 +367,8 @@ class KeysService : InputMethodService(), KeyListener {
             c.isLetterOrDigit() -> { finishComposing(); currentInputConnection?.commitText(s, 1); undo = null }
             // Punctuation finishes the word and may autocorrect it; its undo must survive (it used to be wiped
             // right here, so backspace after "CINC?" deleted the "?" instead of putting "CINC" back).
-            else -> separator(s)
+            // separator() sets Shift for what now comes before the cursor: "word. " after a pick capitalises the next word.
+            else -> { separator(s, afterPick); return }
         }
         if (keyboard.shift == Shift.ONE) keyboard.shift = Shift.OFF
     }
@@ -390,9 +413,13 @@ class KeysService : InputMethodService(), KeyListener {
         composing.append(word)
     }
 
-    /** Space or punctuation: the word is finished, so this is where autocorrect happens. */
-    private fun separator(sep: String) {
+    /**
+     * Space or punctuation: the word is finished, so this is where autocorrect happens.
+     * [afterPick]: the space a picked suggestion just added (see [pickSpaceAt]).
+     */
+    private fun separator(sep: String, afterPick: Int? = null) {
         val ic = currentInputConnection ?: return
+        val now = SystemClock.uptimeMillis()
         if (composing.isNotEmpty()) {
             val original = composing.toString()
             // "i." stays as typed: "i.e." and list markers (the owner, 2026-10-12). "@", "/", ":" and the like join
@@ -406,15 +433,35 @@ class KeysService : InputMethodService(), KeyListener {
             strip.clear()
             undo = if (final != original) Undo(original, final, sep, at) else null
             ic.commitText(sep, 1)
+            lastSpaceAt = if (sep == " ") now else 0L
         } else {
             // No word of ours is being typed, so nothing in the field should be marked as one (KB-2).
             ic.finishComposingText()
-            // Double space after a word: ". " like most keyboards.
-            if (sep == " " && lastWasSpaceAfterWord()) {
+            undo = null
+            // Right after a picked suggestion, which already added a space: a space tap keeps just that one (it used to
+            // become ". "), and . , ? ! go before it: "word. ", not "word .".
+            if (afterPick != null && (sep == " " || Words.swapsWithSpace(sep)) && pickSpaceThere(ic, afterPick)) {
+                if (sep != " ") {
+                    val at = cursorInField(ic) // read before writing
+                    ic.deleteSurroundingText(1, 0)
+                    ic.commitText("$sep ", 1)
+                    // The space after it is still the one the pick added: "word?!" works the same way.
+                    pickSpaceAt = at?.let { it + sep.length } ?: -1
+                }
+                lastSpaceAt = if (sep == " ") now else 0L
+                updateAutoCaps()
+                return
+            }
+            // Double space after a word: ". " like most keyboards. Only two quick taps, and only in plain text
+            // (never in a password, email or web address).
+            if (sep == " " && proseField && now - lastSpaceAt < Words.DOUBLE_SPACE_MS && lastWasSpaceAfterWord()) {
                 ic.deleteSurroundingText(1, 0)
                 ic.commitText(". ", 1)
-            } else ic.commitText(sep, 1)
-            undo = null
+                lastSpaceAt = 0L
+            } else {
+                ic.commitText(sep, 1)
+                lastSpaceAt = if (sep == " ") now else 0L
+            }
         }
         updateAutoCaps()
     }
@@ -425,6 +472,10 @@ class KeysService : InputMethodService(), KeyListener {
         if (st.offset < 0 || st.selectionStart < 0 || st.selectionStart != st.selectionEnd) return null
         return st.offset + st.selectionStart
     }
+
+    /** The space a pick added is still right before the cursor, where it was left ([at] -1: the editor didn't say). */
+    private fun pickSpaceThere(ic: android.view.inputmethod.InputConnection, at: Int): Boolean =
+        ic.getTextBeforeCursor(1, 0)?.toString() == " " && (at < 0 || cursorInField(ic) == at)
 
     private fun lastWasSpaceAfterWord(): Boolean {
         val before = currentInputConnection?.getTextBeforeCursor(2, 0)?.toString() ?: return false
@@ -493,11 +544,14 @@ class KeysService : InputMethodService(), KeyListener {
         val ic = currentInputConnection ?: return
         // "+ Save" only for the word as typed right now: never a word the strip showed a moment earlier.
         if (save && word != composing.toString()) return
+        // Read before writing: where the cursor is, so the next key can tell the added space is still there.
+        val cur = cursorInField(ic)
         pickFor = null
         val final = if (save) word else if (composing.isNotEmpty()) matchCase(composing.toString(), word) else word
         ic.commitText("$final ", 1)
         learn(final)
         if (save && learnOn) userWords.keep(final)
+        pickSpaceAt = cur?.let { it - composing.length + final.length + 1 } ?: -1; lastSpaceAt = 0L
         composing.clear(); strip.clear(); undo = null
         updateAutoCaps()
     }

@@ -564,7 +564,9 @@ class KeysService : InputMethodService(), KeyListener {
     private fun enter() {
         if (composing.isNotEmpty()) {
             val original = composing.toString()
-            val final = fixFor(original) ?: original
+            // Enter that sends, searches, goes, moves on or finishes: no fix, since it could never be taken back
+            // (the message is gone or the box has changed). A new line still fixes the word (KB-12).
+            val final = if (useEnterAction) original else fixFor(original) ?: original
             currentInputConnection?.commitText(final, 1)
             learn(final)
             composing.clear(); strip.clear()

@@ -368,6 +368,10 @@ class KeysService : InputMethodService(), KeyListener {
         feedback.deleteRepeat(keyboard, vibrateOn)
         delete()
     }
+    override fun onDeleteWordRepeat() {
+        feedback.deleteRepeat(keyboard, vibrateOn)
+        deleteWord()
+    }
     override fun onShiftLock() {
         keyboard.shift = Shift.LOCKED
     }
@@ -558,6 +562,23 @@ class KeysService : InputMethodService(), KeyListener {
             return
         }
         sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+        updateAutoCaps()
+    }
+
+    /** Delete held for a while: the word being typed, or the word (and spaces) before the cursor (KB-11). */
+    private fun deleteWord() {
+        val ic = currentInputConnection ?: return
+        undo = null
+        if (composing.isNotEmpty()) {
+            composing.clear(); ic.commitText("", 1); strip.clear(); updateAutoCaps()
+            return
+        }
+        // A selection goes the usual way (one backspace removes it); read before writing.
+        val n = if (ic.getSelectedText(0).isNullOrEmpty()) ic.getTextBeforeCursor(MAX_WORD, 0)?.let(Words::wordDeleteLength) ?: 0 else 0
+        if (n == 0) { delete(); return }
+        ic.finishComposingText()
+        ic.deleteSurroundingText(n, 0)
+        strip.clear()
         updateAutoCaps()
     }
 

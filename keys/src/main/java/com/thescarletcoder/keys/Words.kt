@@ -45,6 +45,18 @@ object Words {
      */
     fun isAcronym(word: String, capsLock: Boolean) = !capsLock && word.count { it.isLetter() } >= 2 && word.none { it.isLowerCase() }
 
+    /**
+     * How many characters before the cursor one word-at-a-time backspace removes: the spaces right before the cursor,
+     * then the word (everything up to the next space) before them. A surrogate pair cut by the read isn't split.
+     */
+    fun wordDeleteLength(before: CharSequence): Int {
+        var i = before.length
+        while (i > 0 && before[i - 1].isWhitespace()) i--
+        while (i > 0 && !before[i - 1].isWhitespace()) i--
+        if (i == 0 && before.isNotEmpty() && before[0].isLowSurrogate()) i = 1
+        return before.length - i
+    }
+
     /** Two space taps closer together than this make ". " (Android's own keyboard uses the same 1.1 seconds). */
     const val DOUBLE_SPACE_MS = 1100L
 

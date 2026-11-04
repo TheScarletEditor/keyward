@@ -43,4 +43,15 @@ class TypingRulesTest {
         // Not all capitals, or a single letter: corrected as before.
         listOf("Teh", "teh", "CInc", "I", "A").forEach { assertFalse(it, Words.isAcronym(it, capsLock = false)) }
     }
+
+    @Test fun holdingBackspaceTakesAWordAndTheSpacesAfterIt() {
+        assertEquals("world".length, Words.wordDeleteLength("hello world"))
+        assertEquals("world  ".length, Words.wordDeleteLength("hello world  "))
+        assertEquals("hello,".length, Words.wordDeleteLength("hello,"))
+        assertEquals("site.com/a".length, Words.wordDeleteLength("see site.com/a"))
+        assertEquals("two\n".length, Words.wordDeleteLength("one\ntwo\n"))
+        assertEquals(0, Words.wordDeleteLength(""))
+        // A read that starts in the middle of an emoji never leaves half of it behind.
+        assertEquals(2, Words.wordDeleteLength("\uDE00ab"))
+    }
 }

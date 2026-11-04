@@ -31,6 +31,8 @@ interface KeyListener {
     fun onKey(key: Key)
     fun onAlt(text: String)
     fun onDeleteRepeat()
+    /** Delete held for a while: a whole word at a time (KB-11). */
+    fun onDeleteWordRepeat() = onDeleteRepeat()
     fun onSpaceLongPress()
     /** Caps lock straight away: TalkBack's long press on Shift, where two quick taps aren't possible (R1). */
     fun onShiftLock()
@@ -164,8 +166,13 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
     private val handler = Handler(Looper.getMainLooper())
     private var repeating = false
     private var repeatPointer = -1
+    /** Repeats since delete went down: past [CHAR_REPEATS] (about two seconds of holding), a word at a time (KB-11). */
+    private var repeats = 0
     private val repeatRunnable = object : Runnable {
-        override fun run() { listener.onDeleteRepeat(); handler.postDelayed(this, 50) }
+        override fun run() {
+            if (++repeats > CHAR_REPEATS) { listener.onDeleteWordRepeat(); handler.postDelayed(this, WORD_REPEAT_MS) }
+            else { listener.onDeleteRepeat(); handler.postDelayed(this, 50) }
+        }
     }
     private var lpPointer = -1
     private var lpIndex = -1
@@ -501,7 +508,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
             key.type == KeyType.DELETE -> {
                 listener.onKey(key) // delete fires on press, then repeats while held
                 handler.removeCallbacks(repeatRunnable)
-                repeating = true; repeatPointer = pointer
+                repeating = true; repeatPointer = pointer; repeats = 0
                 handler.postDelayed(repeatRunnable, 400)
             }
             key.alt != null || accentsAt(i) != null || key.type == KeyType.SPACE -> {
@@ -570,6 +577,9 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
 
     companion object {
         private const val MAX_POINTERS = 16
+        /** 400 ms, then 32 characters 50 ms apart: words from two seconds of holding. */
+        private const val CHAR_REPEATS = 32
+        private const val WORD_REPEAT_MS = 150L
         private const val WORDMARK = "KEYWARD"
         private val ACCENT_ACTIONS = intArrayOf(R.id.a11y_accent_0, R.id.a11y_accent_1, R.id.a11y_accent_2, R.id.a11y_accent_3)
         private const val WORDMARK_FADE_MS = 400f

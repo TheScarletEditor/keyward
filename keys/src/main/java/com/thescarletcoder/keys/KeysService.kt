@@ -52,6 +52,8 @@ class KeysService : InputMethodService(), KeyListener {
     // Per-field state
     private var suggestOn = false
     private var autocorrectOn = false
+    /** The word being typed is joined to the text before it ("2nd", "@sam", "site.com"): never autocorrected. */
+    private var joined = false
     private var learnOn = false
     /** The user's saved (and, with [learnOn], learned) words may be suggested here: not while locked or in private fields (Q33, Q37). */
     private var userWordsOn = false
@@ -193,6 +195,8 @@ class KeysService : InputMethodService(), KeyListener {
         )
         numeric = cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE || cls == InputType.TYPE_CLASS_DATETIME
 
+        // A name field: suggestions, but names are never corrected into other words.
+        val personName = cls == InputType.TYPE_CLASS_TEXT && variation == InputType.TYPE_TEXT_VARIATION_PERSON_NAME
         val noLearning = info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
         // Locked: dictionary only, nothing learned, and the words leave memory (Q33).
         val locked = getSystemService(KeyguardManager::class.java).isDeviceLocked
@@ -200,7 +204,7 @@ class KeysService : InputMethodService(), KeyListener {
         suggestOn = prefs.suggestions && cls == InputType.TYPE_CLASS_TEXT && !password && !addressy && !noSuggestFlag
         // Keyward's own words search: never learned from or corrected (searching must never teach the keyboard).
         val ownNoLearn = info.packageName == packageName && info.privateImeOptions?.contains(Words.NO_LEARN) == true
-        autocorrectOn = suggestOn && prefs.autocorrect && !ownNoLearn
+        autocorrectOn = suggestOn && prefs.autocorrect && !ownNoLearn && !personName
         // Saved words count wherever there are suggestions (S7-4), except incognito and no-learning boxes (Q37).
         userWordsOn = suggestOn && !noLearning && !locked
         learnOn = userWordsOn && prefs.learn && !ownNoLearn
@@ -329,6 +333,7 @@ class KeysService : InputMethodService(), KeyListener {
                 val ic = currentInputConnection
                 val look = if (composing.isEmpty()) lookBack() else null
                 // One batch, so the editor reports a single change and never a moment with no word being typed.
+                if (composing.isEmpty()) joined = look?.joined ?: false
                 ic?.beginBatchEdit()
                 if (composing.isEmpty() && look != null && look.word.isNotEmpty()) takeUp(look, look.word.length)
                 composing.append(s)
@@ -345,8 +350,11 @@ class KeysService : InputMethodService(), KeyListener {
         if (keyboard.shift == Shift.ONE) keyboard.shift = Shift.OFF
     }
 
-    /** The word the cursor sits at the end of ("" when none) and where it starts in the field (-1 when unknown). */
-    private class Look(val word: String, val start: Int)
+    /**
+     * The word the cursor sits at the end of ("" when none) and where it starts in the field (-1 when unknown).
+     * [joined]: it's joined to the text before it (Words.joinedAfter).
+     */
+    private class Look(val word: String, val start: Int, val joined: Boolean)
 
     /**
      * Read only, and always before any edit: some editors (Jetpack Compose) apply a batch's edits only when it ends and
@@ -364,7 +372,7 @@ class KeysService : InputMethodService(), KeyListener {
         val before = st.text.subSequence(0, cur)
         val word = Words.wordAtEnd(before, MAX_WORD) ?: return null
         val start = if (st.offset >= 0) st.offset + cur - word.length else -1
-        return Look(word, start)
+        return Look(word, start, Words.joinedAfter(Words.charBeforeWord(before)))
     }
 
     /**
@@ -387,8 +395,9 @@ class KeysService : InputMethodService(), KeyListener {
         val ic = currentInputConnection ?: return
         if (composing.isNotEmpty()) {
             val original = composing.toString()
-            // "i." stays as typed: "i.e." and list markers (the owner, 2026-10-12).
-            val final = (if (sep == "." && original == "i") null else fixFor(original)) ?: original
+            // "i." stays as typed: "i.e." and list markers (the owner, 2026-10-12). "@", "/", ":" and the like join
+            // the word to more (an email, a path, "https:"), so they never correct it.
+            val final = (if ((sep == "." && original == "i") || !Words.correctsOn(sep)) null else fixFor(original)) ?: original
             // Read before writing: where the word starts, so the undo knows where it applies.
             val at = if (final != original) cursorInField(ic)?.let { it - original.length + final.length + sep.length } ?: -1 else -1
             ic.commitText(final, 1)
@@ -455,7 +464,7 @@ class KeysService : InputMethodService(), KeyListener {
             ic.finishComposingText()
             ic.deleteSurroundingText(1, 0)
             val resumed = look.word.length > 1
-            if (resumed) takeUp(look, look.word.length - 1)
+            if (resumed) { takeUp(look, look.word.length - 1); joined = look.joined }
             ic.endBatchEdit()
             if (resumed) refreshSuggestions() else strip.clear()
             updateAutoCaps()
@@ -531,7 +540,7 @@ class KeysService : InputMethodService(), KeyListener {
         val my = ++seq
         val learnNow = learnOn
         val savedNow = userWordsOn
-        val correctNow = autocorrectOn
+        val correctNow = autocorrectOn && !joined
         val keptNow = HashSet(kept)
         worker.execute {
             if (my != seq) return@execute
@@ -569,7 +578,7 @@ class KeysService : InputMethodService(), KeyListener {
 
     /** The fix for a finished word: reuse the background result if it's for this exact word, else work it out now. */
     private fun fixFor(original: String): String? {
-        if (!autocorrectOn || original.lowercase() in kept) return null
+        if (!autocorrectOn || joined || original.lowercase() in kept) return null
         if (pickFor == original) return autocorrectPick
         val d = dict ?: return null
         val (boost, learned, known) = wordsFor(d, learnOn, userWordsOn)

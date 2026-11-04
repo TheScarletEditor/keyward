@@ -56,4 +56,10 @@ class KeyLabelsTest {
         assertEquals("q", KeyLabels.spoken(Key("q"), Shift.OFF, EnterKind.RETURN, ""))
         assertEquals("Backspace", KeyLabels.spoken(Key("delete", KeyType.DELETE), Shift.OFF, EnterKind.RETURN, ""))
     }
+
+    @Test fun forgettingAWordSaysWhichWord() {
+        assertEquals("Remove \u201Cteh\u201D from your words?", KeyLabels.forgetPrompt("teh"))
+        assertEquals("Remove teh from your words", KeyLabels.forgetConfirm("teh"))
+        assertEquals("Keep teh", KeyLabels.forgetCancel("teh"))
+    }
 }

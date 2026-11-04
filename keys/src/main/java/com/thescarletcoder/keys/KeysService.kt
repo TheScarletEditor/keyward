@@ -139,6 +139,8 @@ class KeysService : InputMethodService(), KeyListener {
         // No screenshots, screen recordings, screen sharing or AI screen reading of the keyboard, anywhere (Q34).
         window.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         panel = KeyboardPanel(this, this) { word, save -> pick(word, save) }
+        strip.forgettable = { if (learnOn) userWords.isKnown(it) else userWordsOn && userWords.isSaved(it) }
+        strip.onForget = { forget(it) }
         // Suggestions show learned and saved words: only accessibility tools that are real assistive tech (TalkBack,
         // Switch Access) can read the keyboard, not other apps with accessibility access (Q42).
         panel.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_YES)
@@ -599,6 +601,13 @@ class KeysService : InputMethodService(), KeyListener {
     }
 
     /** A suggestion tapped; [save]: it was the typed word with "+ Save", kept as typed and saved (Q28). */
+    /** Long-pressed on the strip and confirmed: the word is no longer learned or saved, so it stops coming up (KB-14). */
+    private fun forget(word: String) {
+        userWords.removeAsync(word) { _, _ ->
+            if (composing.isNotEmpty()) refreshSuggestions() else strip.clear()
+        }
+    }
+
     private fun pick(word: String, save: Boolean) {
         val ic = currentInputConnection ?: return
         // "+ Save" only for the word as typed right now: never a word the strip showed a moment earlier.

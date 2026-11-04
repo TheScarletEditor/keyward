@@ -55,6 +55,12 @@ object KeyLabels {
         else -> "Suggestion: $word"
     }
 
+    /** Forgetting a learned word from the strip (KB-14): the long-press action, the question, and its two answers. */
+    const val FORGET_ACTION = "Remove from your words"
+    fun forgetPrompt(word: String) = "Remove \u201C$word\u201D from your words?"
+    fun forgetConfirm(word: String) = "Remove $word from your words"
+    fun forgetCancel(word: String) = "Keep $word"
+
     /** An accent as typed and as TalkBack's action name for it: the character itself, capital with Shift on (KB-5). */
     fun accent(ch: Char, shift: Shift): String = if (shift == Shift.OFF) ch.toString() else ch.uppercaseChar().toString()
 }

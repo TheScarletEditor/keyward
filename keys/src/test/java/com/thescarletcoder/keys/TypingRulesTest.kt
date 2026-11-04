@@ -59,7 +59,7 @@ class TypingRulesTest {
     private val real = setOf("something", "this", "do", "it", "end", "the", "see", "you", "google", "report", "notes",
         "node", "mr", "smith", "etc", "and", "at", "home", "sam")
     private fun split(before: String, word: String) =
-        Words.missedSpace(before, word, { it.lowercase() in real }, { if (it == "thit") "this" else null })
+        Words.missedSpace(before, word, { it.lowercase() in real }, { if (it.lowercase() == "thit") "this" else null })
 
     @Test fun aPeriodBetweenTwoWordsIsAMissedSpace() {
         assertEquals("something" to "this", split("I want something.", "thit"))
@@ -105,8 +105,23 @@ class TypingRulesTest {
         assertNull(split("1.", "5"))
     }
 
-    @Test fun aCapitalAfterThePeriodMeansThePeriodWasMeant() {
-        assertNull(split("the end.", "The"))
+    @Test fun aCapitalAfterThePeriodSplitsToo() {
+        assertEquals("end" to "The", split("the end.", "The"))
+        assertEquals("end" to "This", split("the end.", "Thit"))
+        assertEquals("see" to "Sam", split("see.", "Sam"))
+    }
+
+    @Test fun capitalsKeepEveryOtherGuard() {
         assertNull(split("ASP.", "NET"))
+        assertNull(split("the U.S.", "A"))
+        assertNull(split("U.", "S"))
+        assertNull(split("Google.", "Com"))
+        assertNull(split("Node.", "Js"))
+        assertNull(split("Report.", "Pdf"))
+        assertNull(split("Mr.", "Smith"))
+        assertNull(split("@Sam.", "This"))
+        assertNull(split("#Sam.", "The"))
+        assertNull(split("Www.Google.", "The"))
+        assertNull(split("v2.", "The"))
     }
 }

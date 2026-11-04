@@ -66,10 +66,11 @@ object Words {
      *   (not after "@", "#", "/", ":" or another "."), and the word after it isn't a domain ending or file type;
      * - abbreviations: one letter either side ("e.g", "i.e", "a.m", "U.S") or a known short form ("etc", "Mr");
      * - numbers (decimals, versions, times): only letters either side;
-     * - a capital after the period ("end.The", "ASP.NET"): that period was meant.
+     * - a word in capitals after the period ("ASP.NET"), an acronym. A capitalised word splits like any other:
+     *   "end.The" is "end The", and a fix keeps the capital ("end.Thit" is "end This"), as the owner chose (2026-11-04).
      */
     fun missedSpace(beforeWord: CharSequence, word: String, known: (String) -> Boolean, fix: (String) -> String?): Pair<String, String>? {
-        if (word.length < 2 || !word.all { it.isLetter() } || !word[0].isLowerCase()) return null
+        if (word.length < 2 || !word.all { it.isLetter() } || word.none { it.isLowerCase() }) return null
         if (word.lowercase() in NOT_AFTER_DOT) return null
         val n = beforeWord.length
         if (n < 3 || beforeWord[n - 1] != '.') return null
@@ -80,7 +81,7 @@ object Words {
         val c = if (i > 0) beforeWord[i - 1] else null
         if (c != null && !c.isWhitespace() && c !in LEFT_OPENERS) return null
         if (left.lowercase() in SHORT_FORMS || left.lowercase() in NOT_AFTER_DOT || !known(left)) return null
-        val right = if (known(word)) word else fix(word) ?: return null
+        val right = if (known(word)) word else fix(word)?.let { if (word[0].isUpperCase()) it.replaceFirstChar(Char::uppercaseChar) else it } ?: return null
         return left to right
     }
 

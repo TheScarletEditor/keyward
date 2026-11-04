@@ -26,3 +26,15 @@ Before fixing: reproduce each on an emulator and write a failing JVM test (Sugge
 ## From the owner's 0.2.2 device tests (2026-10-14)
 
 - KB-8: The Scarlet Coder card in Settings shows the website address but can't be copied. Owner, Q63: "Leave it for 0.2.2". Later: long press the card to copy the address, with a "Copied" message (the owner's call which version).
+
+## From the common-issues audit (proposed, 2026-11-04)
+
+Fixed in the audit's draft PR: autocorrect leaving numbers, handles, web addresses and names alone; spaces and periods after a picked suggestion; double space only for two quick taps in plain text; phone, date, email and web address keys; apostrophe from ?123 back to letters; fast typing never swapping letters. These are behaviour changes the owner would notice either way, so they wait for the owner's call:
+
+- KB-9: words in all capitals are corrected like any other ("CINC" becomes "CIBC"). Proposed: leave all-caps words alone (acronyms), but still correct while caps lock is on.
+- KB-10: after typing a number or symbol on ?123, space keeps ?123 up. Android's own keyboard goes back to letters after the space. Proposed: do the same.
+- KB-11: holding backspace deletes one character at a time, forever. Proposed: after about two seconds of holding, delete whole words.
+- KB-12: a fix applied by Enter or Send can't be taken back (no undo, and in a search or chat box it's already sent). Proposed: no autocorrect on Enter when Enter sends, searches or goes; keep it for a new line.
+- KB-13: a space typed by hand, then "," or ".", leaves "word ,". Proposed: move . , ? ! before a space typed right before them too, as is done now after a picked suggestion.
+- KB-14: no way to forget a learned word from the strip. Proposed: long press a suggestion to remove it from your words (with a one-line confirm).
+- KB-15: wants, not bugs: slide on the space bar to move the cursor; an emoji key; long press "." for more punctuation.

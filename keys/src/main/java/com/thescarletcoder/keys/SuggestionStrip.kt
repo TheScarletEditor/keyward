@@ -42,10 +42,16 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
     private val density = resources.displayMetrics.density
     private val words = arrayOfNulls<String>(3)
     private val shown = arrayOfNulls<String>(3)
+    /** Where each slot starts and ends, and each word's text size, from [StripFit]: long words get the room (KB-16). */
+    private var edges = floatArrayOf(0f, 0f, 0f, 0f)
+    private val scale = FloatArray(3) { 1f }
+    private val baseText get() = size.stripText * density
     private val slotStart = LongArray(3)
     private var highlight = -1
     private var replacing = false
     private var saveSlot = -1
+    /** The slot the service offered "+ Save" for; [saveSlot] is where it still shows once the words are fitted. */
+    private var offeredSave = -1
     private var pressedSlot = -1
     /** The word a long press offered to forget, while the strip asks "Remove ... from your words?" (KB-14). */
     private var forgetting: String? = null
@@ -91,7 +97,8 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
         // New words (typing on, a new field, clear()) drop the question unanswered.
         if (forgetting != null && (0 until 3).any { list.getOrNull(it) != words[it] }) forgetting = null
         replacing = replaces
-        this.saveSlot = if (list.getOrNull(saveSlot) != null) saveSlot else -1
+        offeredSave = if (list.getOrNull(saveSlot) != null) saveSlot else -1
+        this.saveSlot = offeredSave
         val now = SystemClock.uptimeMillis()
         for (i in 0 until 3) {
             val w = list.getOrNull(i)
@@ -134,7 +141,7 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
 
         override fun getVirtualViewAt(x: Float, y: Float): Int {
             if (forgetting != null) return if (onRemove(x)) REMOVE_ID else KEEP_ID
-            val slot = (x / (width / 3f)).toInt().coerceIn(0, 2)
+            val slot = StripFit.slotAt(edges, x)
             return if (words[slot] != null) slot else INVALID_ID
         }
 
@@ -156,8 +163,7 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
                 return
             }
             val w = words.getOrNull(id)
-            val slotW = width / 3
-            bounds.set(id * slotW, 0, (id + 1) * slotW, height)
+            bounds.set(edges[id].toInt(), 0, edges[id + 1].toInt(), height)
             node.setBoundsInParent(bounds)
             if (w == null) { node.contentDescription = ""; return }
             node.contentDescription = KeyLabels.suggestion(w, replaces = replacing && id == highlight, saves = id == saveSlot)
@@ -193,17 +199,30 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { ellipsize(); forgetting?.let { forgetShown = fitPrompt(it) } }
 
-    /** Fit each word to its slot once, when words change (never while drawing). */
+    /**
+     * Fit the words to the strip once, when words change (never while drawing): a long word takes room from the
+     * others, then shrinks, then is shortened in the middle so its ending still shows. A "+ Save" word that can't be
+     * shown whole loses "+ Save", so a word is never saved unseen (KB-16).
+     */
     private fun ellipsize() {
-        val slotW = width / 3f
+        if (width <= 0) { for (i in 0 until 3) shown[i] = words[i]; return }
+        val pad = 24 * density
+        val natural = (0 until 3).map { i ->
+            words[i]?.let { paint.textSize = baseText; paint.typeface = if (i == highlight) interMedium else inter; paint.measureText(it) }
+        }
+        val fit = StripFit.fit(width.toFloat(), natural, offeredSave, pad, chipW + chipGap)
+        edges = fit.edges
+        saveSlot = fit.saveSlot
         for (i in 0 until 3) {
+            scale[i] = fit.scale[i]
             val w = words[i]
-            shown[i] = if (w == null || slotW <= 0f) w else {
-                paint.typeface = if (i == highlight) interMedium else inter
-                val room = slotW - 24 * density - (if (i == saveSlot) chipW + chipGap else 0f)
-                TextUtils.ellipsize(w, paint, room.coerceAtLeast(0f), TextUtils.TruncateAt.END).toString()
+            shown[i] = if (w == null || fit.whole[i]) w else {
+                paint.textSize = baseText * scale[i]; paint.typeface = if (i == highlight) interMedium else inter
+                val room = edges[i + 1] - edges[i] - pad - (if (i == saveSlot) chipW + chipGap else 0f)
+                TextUtils.ellipsize(w, paint, room.coerceAtLeast(0f), TextUtils.TruncateAt.MIDDLE).toString()
             }
         }
+        paint.textSize = baseText
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -214,7 +233,6 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
             if (privateField) drawPrivate(canvas, c)
             return
         }
-        val slotW = width / 3f
         val now = SystemClock.uptimeMillis()
         val fade = Tunables[KeysTuning.STRIP_FADE_MS] * animScale
         val cy = height / 2f
@@ -222,10 +240,11 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
         var animating = false
         for (i in 0 until 3) {
             val w = shown[i] ?: continue
-            val cx = i * slotW + slotW / 2
+            val cx = (edges[i] + edges[i + 1]) / 2
+            paint.textSize = baseText * scale[i]
             if (i == pressedSlot) {
                 fill.color = c.stripPressed
-                pill.set(i * slotW + 6 * density, cy - 17 * density, (i + 1) * slotW - 6 * density, cy + 17 * density)
+                pill.set(edges[i] + 6 * density, cy - 17 * density, edges[i + 1] - 6 * density, cy + 17 * density)
                 canvas.drawRoundRect(pill, pillR, pillR, fill)
             }
             paint.typeface = if (i == highlight) interMedium else inter
@@ -257,9 +276,10 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
             // Dividers only between two slots that both have a word.
             if (i > 0 && shown[i - 1] != null) {
                 divider.color = c.divider
-                canvas.drawLine(i * slotW, height * 0.3f, i * slotW, height * 0.7f, divider)
+                canvas.drawLine(edges[i], height * 0.3f, edges[i], height * 0.7f, divider)
             }
         }
+        paint.textSize = baseText
         if (animating) postInvalidateOnAnimation()
     }
 
@@ -294,7 +314,7 @@ class SuggestionStrip(context: Context, private val onPick: (String, Boolean) ->
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
-        val slot = (e.x / (width / 3f)).toInt().coerceIn(0, 2)
+        val slot = StripFit.slotAt(edges, e.x)
         if (forgetting != null) {
             // The question is up: a tap on "Remove" forgets the word, a tap anywhere else keeps it.
             if (e.actionMasked == MotionEvent.ACTION_UP) { if (longPressed) longPressed = false else endForget(remove = onRemove(e.x)) }

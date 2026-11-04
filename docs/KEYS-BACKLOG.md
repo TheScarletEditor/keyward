@@ -39,6 +39,7 @@ The owner's picks from the open questions (2026-11-04: "Build all except 5"), bu
 - KB-12 (built): no autocorrect from an Enter that sends, searches or goes; a new line still corrects.
 - KB-13 (skipped by the owner): a space typed by hand, then "," or ".", still leaves "word ,".
 - KB-14 (built): long press a learned or saved word on the strip to remove it from your words, with a one-line confirm.
+- KB-16 (built, reported by the owner 2026-11-04): long suggestions were cut off at the end, so a misspelling offered with "+ Save" looked right and got saved. Now a long word takes room from the others, then shrinks a little, then is shortened in the middle so its ending shows; a "+ Save" word is always shown whole, or offered without "+ Save".
 
 Still open:
 

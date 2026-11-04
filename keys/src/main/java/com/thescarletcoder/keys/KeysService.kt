@@ -60,6 +60,8 @@ class KeysService : InputMethodService(), KeyListener {
     private var enterAction = EditorInfo.IME_ACTION_UNSPECIFIED
     private var useEnterAction = false
     private var numeric = false
+    /** The letters layout for this field: "@" in email fields, "/" in web address fields. */
+    private var lettersRows = Layouts.letters
     /** Plain text, where a double space makes ". ": not password, email, web address or no-suggestion fields. */
     private var proseField = false
     /** When space was last tapped (0: the last key wasn't space), so only two quick taps make ". ". */
@@ -231,7 +233,18 @@ class KeysService : InputMethodService(), KeyListener {
         useEnterAction = !multiline && info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION == 0 &&
             enterAction != EditorInfo.IME_ACTION_NONE && enterAction != EditorInfo.IME_ACTION_UNSPECIFIED
 
-        keyboard.rows = if (numeric) Layouts.numpad else Layouts.letters
+        lettersRows = when {
+            cls != InputType.TYPE_CLASS_TEXT -> Layouts.letters
+            variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS || variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS -> Layouts.lettersEmail
+            variation == InputType.TYPE_TEXT_VARIATION_URI -> Layouts.lettersUrl
+            else -> Layouts.letters
+        }
+        keyboard.rows = when (cls) {
+            InputType.TYPE_CLASS_PHONE -> Layouts.phonepad
+            InputType.TYPE_CLASS_DATETIME -> Layouts.datepad
+            InputType.TYPE_CLASS_NUMBER -> Layouts.numpad
+            else -> lettersRows
+        }
         // Personal and debug builds: never private or password boxes, never before the first unlock (Q38).
         if (BuildConfig.TUNING && !password && !noLearning && !noSuggestFlag) {
             val num = numeric
@@ -313,14 +326,18 @@ class KeysService : InputMethodService(), KeyListener {
         if (!passesOn) pickSpaceAt = null
         if (!passesOn && key.type != KeyType.SPACE) lastSpaceAt = 0L
         when (key.type) {
-            KeyType.CHAR -> typeChar(if (keyboard.shift != Shift.OFF && key.label[0].isLetter()) key.label.uppercase() else key.label, afterPick)
+            KeyType.CHAR -> {
+                typeChar(if (keyboard.shift != Shift.OFF && key.label[0].isLetter()) key.label.uppercase() else key.label, afterPick)
+                // An apostrophe from ?123 goes back to letters, so "don" ?123 ' "t" needs no ABC tap (as on Android's own keyboard).
+                if (key.label == "'" && (keyboard.rows === Layouts.symbols || keyboard.rows === Layouts.symbols2)) keyboard.rows = lettersRows
+            }
             KeyType.SPACE -> separator(" ", afterPick)
             KeyType.DELETE -> delete()
             KeyType.ENTER -> enter()
             KeyType.SHIFT -> shiftTap()
             KeyType.SYMBOLS -> { keyboard.rows = Layouts.symbols }
             KeyType.SYMBOLS2 -> { keyboard.rows = Layouts.symbols2 }
-            KeyType.LETTERS -> { keyboard.rows = Layouts.letters; updateAutoCaps() }
+            KeyType.LETTERS -> { keyboard.rows = lettersRows; updateAutoCaps() }
             KeyType.HIDE -> { finishComposing(); requestHideSelf(0) }
             KeyType.SPACER -> Unit
         }

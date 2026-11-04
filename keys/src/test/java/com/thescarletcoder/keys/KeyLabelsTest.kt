@@ -9,6 +9,7 @@ import org.junit.Test
 class KeyLabelsTest {
     private val layouts = mapOf(
         "letters" to Layouts.letters, "symbols" to Layouts.symbols, "symbols2" to Layouts.symbols2, "numpad" to Layouts.numpad,
+        "lettersEmail" to Layouts.lettersEmail, "lettersUrl" to Layouts.lettersUrl, "phonepad" to Layouts.phonepad, "datepad" to Layouts.datepad,
     )
 
     @Test fun everyKeyHasASpokenLabel() {

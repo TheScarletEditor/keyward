@@ -36,6 +36,15 @@ object Layouts {
         bottomLetters,
     )
 
+    /** Letters with [key] in the comma's place (the comma stays on ?123). */
+    private fun lettersWith(key: String) = letters.mapIndexed { r, row -> if (r == letters.lastIndex) row.map { if (it.label == ",") Key(key) else it } else row }
+
+    /** Email fields: "@" next to space, like most keyboards. */
+    val lettersEmail: List<List<Key>> = lettersWith("@")
+
+    /** Web address fields: "/" next to space. */
+    val lettersUrl: List<List<Key>> = lettersWith("/")
+
     val symbols: List<List<Key>> = listOf(
         chars("1234567890"),
         syms("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
@@ -50,11 +59,27 @@ object Layouts {
         bottomSymbols,
     )
 
-    /** Number and phone fields. */
+    /** Number fields. */
     val numpad: List<List<Key>> = listOf(
         syms("1", "2", "3", "-"),
         syms("4", "5", "6", "+"),
         syms("7", "8", "9") + Key("delete", KeyType.DELETE),
         listOf(Key("ABC", KeyType.LETTERS), Key("0"), Key("."), Key("enter", KeyType.ENTER), Key("hide", KeyType.HIDE)),
+    )
+
+    /** Phone fields: "*" and "#" for menus and codes, "+" for country codes. */
+    val phonepad: List<List<Key>> = listOf(
+        syms("1", "2", "3", "-"),
+        syms("4", "5", "6", "+"),
+        syms("7", "8", "9") + Key("delete", KeyType.DELETE),
+        listOf(Key("ABC", KeyType.LETTERS), Key("*"), Key("0"), Key("#"), Key("enter", KeyType.ENTER), Key("hide", KeyType.HIDE)),
+    )
+
+    /** Date and time fields: "/" and "-" for dates, ":" for times. */
+    val datepad: List<List<Key>> = listOf(
+        syms("1", "2", "3", "/"),
+        syms("4", "5", "6", ":"),
+        syms("7", "8", "9") + Key("delete", KeyType.DELETE),
+        listOf(Key("ABC", KeyType.LETTERS), Key("-"), Key("0"), Key("."), Key("enter", KeyType.ENTER), Key("hide", KeyType.HIDE)),
     )
 }

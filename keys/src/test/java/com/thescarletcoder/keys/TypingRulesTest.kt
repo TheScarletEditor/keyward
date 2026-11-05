@@ -57,7 +57,8 @@ class TypingRulesTest {
 
     // KB-17: a period typed instead of a space.
     private val real = setOf("something", "this", "do", "it", "end", "the", "see", "you", "google", "report", "notes",
-        "node", "mr", "smith", "etc", "and", "at", "home", "sam")
+        "node", "mr", "smith", "etc", "and", "at", "home", "sam", "my", "blog", "tea", "shop", "store", "about", "me",
+        "call", "read", "news", "online", "cloud", "site", "tech")
     private fun split(before: String, word: String) =
         Words.missedSpace(before, word, { it.lowercase() in real }, { if (it.lowercase() == "thit") "this" else null })
 
@@ -82,6 +83,25 @@ class TypingRulesTest {
         assertNull(split("#sam.", "this"))
         assertNull(split("site.com/report.", "this"))
         assertNull(split("https://report.", "this"))
+    }
+
+    // Review 2026-11-05: domain endings that are everyday words keep their period.
+    @Test fun missedSpaceLeavesAddressesEndingInAWordAlone() {
+        assertNull(split("see my.", "blog"))
+        assertNull(split("tea.", "shop"))
+        assertNull(split("my.", "store"))
+        assertNull(split("about.", "me"))
+        assertNull(split("read.", "news"))
+        assertNull(split("my.", "online"))
+        assertNull(split("my.", "cloud"))
+        assertNull(split("my.", "site"))
+        assertNull(split("my.", "tech"))
+        assertNull(split("My.", "Blog"))
+    }
+
+    @Test fun anEverydayEndingBeforeThePeriodStillSplits() {
+        assertEquals("me" to "this", split("call me.", "thit"))
+        assertEquals("blog" to "this", split("my blog.", "this"))
     }
 
     @Test fun missedSpaceLeavesFileNamesAlone() {

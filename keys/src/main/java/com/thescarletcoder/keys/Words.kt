@@ -63,7 +63,8 @@ object Words {
      * a real one and [fix] is autocorrect's fix for one that isn't. Returns the two words to put in with a space,
      * or null to leave it all as typed. Never for:
      * - a web address, domain, email, handle, tag or path: the word before the period starts right after a space
-     *   (not after "@", "#", "/", ":" or another "."), and the word after it isn't a domain ending or file type;
+     *   (not after "@", "#", "/", ":" or another "."), and the word after it isn't a domain ending or file type,
+     *   including the endings that are everyday words ("my.blog", "about.me", "the.shop"; review 2026-11-05);
      * - abbreviations: one letter either side ("e.g", "i.e", "a.m", "U.S") or a known short form ("etc", "Mr");
      * - numbers (decimals, versions, times): only letters either side;
      * - a word in capitals after the period ("ASP.NET"), an acronym. A capitalised word splits like any other:
@@ -71,7 +72,7 @@ object Words {
      */
     fun missedSpace(beforeWord: CharSequence, word: String, known: (String) -> Boolean, fix: (String) -> String?): Pair<String, String>? {
         if (word.length < 2 || !word.all { it.isLetter() } || word.none { it.isLowerCase() }) return null
-        if (word.lowercase() in NOT_AFTER_DOT) return null
+        if (word.lowercase() in NOT_AFTER_DOT || word.lowercase() in WORD_ENDINGS) return null
         val n = beforeWord.length
         if (n < 3 || beforeWord[n - 1] != '.') return null
         var i = n - 1
@@ -96,6 +97,17 @@ object Words {
         "ppt", "pptx", "png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "mov", "avi", "wav", "zip", "rar", "exe",
         "apk", "dmg", "iso", "ini", "cfg", "yaml", "yml", "sh", "bat", "sql", "db", "bak", "tmp", "lrc", "srt",
         "epub", "mobi", "ics",
+    )
+
+    /**
+     * Domain endings that are also everyday words (review 2026-11-05): "my.blog", "tea.shop" and "about.me" keep their
+     * period. Checked only after the period, never before it ("call me.thit" still splits). The cost: a real missed
+     * space before one of these words ("read.news") is left as typed, the safer way to be wrong. "it" and "us" stay
+     * out: "do.it" is a missed space far more often than an address.
+     */
+    private val WORD_ENDINGS = setOf(
+        "blog", "shop", "store", "site", "online", "news", "tech", "cloud", "me", "live", "page", "link", "club",
+        "space", "website", "studio",
     )
 
     private const val LEFT_OPENERS = "([{\"“‘«"

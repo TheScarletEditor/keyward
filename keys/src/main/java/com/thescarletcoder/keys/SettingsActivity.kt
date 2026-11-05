@@ -1,6 +1,8 @@
 package com.thescarletcoder.keys
 
 import android.app.KeyguardManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
@@ -27,6 +29,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,7 +60,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -75,6 +81,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -385,10 +392,20 @@ private fun Promise(icon: String, text: String, p: ScarletPalette, font: FontFam
 /**
  * The Scarlet Coder card, as in the other Scarlet apps: the raven, the name, the address and the line. Information only:
  * no link out of the app (the owner, Q48). The address in scarlet as in Sudoku (Q49), in shades that read as text.
+ * A long press copies the address (KB-8, the owner 2026-11-05); a tap still does nothing. Android 13 and later show
+ * their own "Copied" confirmation, so the app adds none of its own (it would show twice).
  */
 @Composable
 private fun MakerCard(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily) {
-    val card = Modifier.card(p).padding(16.dp).semantics(mergeDescendants = true) {}
+    val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    val copy: () -> Unit = {
+        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("The Scarlet Coder", SITE_ADDRESS))
+    }
+    val card = Modifier.card(p)
+        .pointerInput(Unit) { detectTapGestures(onLongPress = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); copy() }) }
+        .padding(16.dp)
+        .semantics(mergeDescendants = true) { onLongClick(label = "Copy the website address") { copy(); true } }
     val raven = @Composable {
         Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(44.dp)) { drawCircle(Color(p.scarlet).copy(alpha = 0.14f)) }
@@ -400,11 +417,14 @@ private fun MakerCard(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily
     else Row(card, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) { raven(); MakerText(p, fraunces, inter) }
 }
 
+/** The address on The Scarlet Coder card, shown and copied as is. */
+internal const val SITE_ADDRESS = "thescarletcoder.com"
+
 @Composable
 private fun MakerText(p: ScarletPalette, fraunces: FontFamily, inter: FontFamily) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text("The Scarlet Coder", color = Color(p.text), fontSize = 18.sp, fontFamily = fraunces)
-        Text("thescarletcoder.com", color = Color(if (p.dark) 0xFFFF4D57.toInt() else 0xFFC40411.toInt()), fontSize = 14.sp,
+        Text(SITE_ADDRESS, color = Color(if (p.dark) 0xFFFF4D57.toInt() else 0xFFC40411.toInt()), fontSize = 14.sp,
             fontFamily = inter, fontWeight = FontWeight.Medium)
         Text("Honest tools · Fun games · No tricks", color = Color(p.soft), fontSize = 12.sp, fontFamily = inter)
     }

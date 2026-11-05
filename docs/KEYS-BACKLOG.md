@@ -26,6 +26,7 @@ Before fixing: reproduce each on an emulator and write a failing JVM test (Sugge
 ## From the owner's 0.2.2 device tests (2026-10-14)
 
 - KB-8: The Scarlet Coder card in Settings shows the website address but can't be copied. Owner, Q63: "Leave it for 0.2.2". Later: long press the card to copy the address, with a "Copied" message (the owner's call which version).
+  - Built 2026-11-05 for 0.2.3 (owner: "Add both"): a long press on the card copies "thescarletcoder.com"; TalkBack offers it as "Copy the website address". A tap still does nothing. Android 13 and later show their own "Copied" confirmation, so Keyward adds none (it would show twice). Not yet seen on a device.
 
 ## From the common-issues audit (2026-11-04)
 

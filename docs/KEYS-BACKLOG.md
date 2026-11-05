@@ -42,6 +42,7 @@ The owner's picks from the open questions (2026-11-04: "Build all except 5"), bu
 - KB-14 (built): long press a learned or saved word on the strip to remove it from your words, with a one-line confirm.
 - KB-16 (built, reported by the owner 2026-11-04): long suggestions were cut off at the end, so a misspelling offered with "+ Save" looked right and got saved. Now a long word takes room from the others, then shrinks a little, then is shortened in the middle so its ending shows; a "+ Save" word is always shown whole, or offered without "+ Save".
 - KB-17 (built, reported by the owner 2026-11-04): a period hit instead of space ("something.thit") kept the period and fixed only the second half ("something.this"). Now, when both sides are real words (or the second is a near miss), space turns it into "something this", and one backspace puts back what was typed. Never for web addresses, domains, emails, handles, file names, abbreviations, numbers or a word in capitals; a capitalised word splits too ("end.The" is "end The"), per the owner. Applied on space , ? ! ; in plain text with autocorrect on, not on Enter.
+- KB-18 (built, asked by the owner 2026-11-05): a slightly larger letter bubble (62 dp tall, wider, a bigger letter, kept on screen at the edges), shown in password fields too so each character can be checked (Q70).
 
 Still open:
 

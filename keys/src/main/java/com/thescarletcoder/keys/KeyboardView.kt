@@ -471,7 +471,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
                     if (pick != null) listener.onAlt(pick)
                 } else if (idx >= 0 && !consumed[id] && keyOf[idx].type != KeyType.DELETE) listener.onKey(keyOf[idx])
                 consumed[id] = false
-                // Always: the bubble may have been shown before the field changed to one without it (a password field).
+                // Always: the bubble may have been shown before the field changed to one without it (the bubble turned off).
                 popups?.bubbleUp()
                 invalidate()
             }

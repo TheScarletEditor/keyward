@@ -158,12 +158,16 @@ class KeysService : InputMethodService(), KeyListener {
      */
     override fun onEvaluateFullscreenMode(): Boolean = false
 
-    /** The open field is a password field: never a letter bubble or accent row there, each character would show (Q34). */
+    /**
+     * The open field is a password field: no accent row there (Q34). The letter bubble does show, so each character
+     * can be checked as it's typed (the owner, 2026-11-05, KB-18); the keyboard window stays hidden from screenshots
+     * and screen recording everywhere (Q34).
+     */
     private var passwordField = false
 
     private fun applyLook() {
         val palette = ScarletTokens.resolve(prefs.theme)
-        panel.apply(KeyColors(palette), prefs.keyHeight, prefs.bubble && !passwordField, Motion.scale(this))
+        panel.apply(KeyColors(palette), prefs.keyHeight, prefs.bubble, Motion.scale(this))
         keyboard.accentsOn = !passwordField
     }
 

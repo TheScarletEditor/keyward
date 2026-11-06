@@ -26,3 +26,24 @@ Before fixing: reproduce each on an emulator and write a failing JVM test (Sugge
 ## From the owner's 0.2.2 device tests (2026-10-14)
 
 - KB-8: The Scarlet Coder card in Settings shows the website address but can't be copied. Owner, Q63: "Leave it for 0.2.2". Later: long press the card to copy the address, with a "Copied" message (the owner's call which version).
+  - Built 2026-11-05 for 0.2.3 (owner: "Add both"): a long press on the card copies "thescarletcoder.com"; TalkBack offers it as "Copy the website address". A tap still does nothing. Android 13 and later show their own "Copied" confirmation, so Keyward adds none (it would show twice). Not yet seen on a device.
+
+## From the common-issues audit (2026-11-04)
+
+Fixed in the audit's draft PR: autocorrect leaving numbers, handles, web addresses and names alone; spaces and periods after a picked suggestion; double space only for two quick taps in plain text; phone, date, email and web address keys; apostrophe from ?123 back to letters; fast typing never swapping letters.
+
+The owner's picks from the open questions (2026-11-04: "Build all except 5"), built in the same draft PR:
+
+- KB-9 (built): words typed in capitals are left as typed ("CINC" stays "CINC"); with caps lock on they're still corrected.
+- KB-10 (built): after typing on ?123, space or Enter goes back to letters, like Android's own keyboard.
+- KB-11 (built): holding backspace for about two seconds speeds up to whole words.
+- KB-12 (built): no autocorrect from an Enter that sends, searches or goes; a new line still corrects.
+- KB-13 (skipped by the owner): a space typed by hand, then "," or ".", still leaves "word ,".
+- KB-14 (built): long press a learned or saved word on the strip to remove it from your words, with a one-line confirm.
+- KB-16 (built, reported by the owner 2026-11-04): long suggestions were cut off at the end, so a misspelling offered with "+ Save" looked right and got saved. Now a long word takes room from the others, then shrinks a little, then is shortened in the middle so its ending shows; a "+ Save" word is always shown whole, or offered without "+ Save".
+- KB-17 (built, reported by the owner 2026-11-04): a period hit instead of space ("something.thit") kept the period and fixed only the second half ("something.this"). Now, when both sides are real words (or the second is a near miss), space turns it into "something this", and one backspace puts back what was typed. Never for web addresses, domains, emails, handles, file names, abbreviations, numbers or a word in capitals; a capitalised word splits too ("end.The" is "end The"), per the owner. Applied on space , ? ! ; in plain text with autocorrect on, not on Enter.
+- KB-18 (built, asked by the owner 2026-11-05): a slightly larger letter bubble (62 dp tall, wider, a bigger letter, kept on screen at the edges), shown in password fields too so each character can be checked (Q70).
+
+Still open:
+
+- KB-15: wants, not bugs: slide on the space bar to move the cursor; an emoji key; long press "." for more punctuation.

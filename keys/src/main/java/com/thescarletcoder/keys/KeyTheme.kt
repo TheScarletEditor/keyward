@@ -34,6 +34,8 @@ class KeyColors(p: ScarletPalette) {
     val stripPick = if (p.dark) 0x14FAF9F6 else 0x0F171614
     val stripPressed = if (p.dark) 0x24FAF9F6 else 0x1A171614
     val divider = p.line
+    /** "Remove" when forgetting a word on the strip: scarlet in the shades that read as text (Q49, KB-14). */
+    val remove = if (p.dark) 0xFFFF4D57.toInt() else 0xFFC40411.toInt()
 }
 
 /** Key icons as paths on a 24-unit grid (KEYS-POLISH-SPEC section 2). Never font glyphs. */

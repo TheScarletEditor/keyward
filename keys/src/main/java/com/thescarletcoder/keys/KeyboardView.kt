@@ -31,6 +31,8 @@ interface KeyListener {
     fun onKey(key: Key)
     fun onAlt(text: String)
     fun onDeleteRepeat()
+    /** Delete held for a while: a whole word at a time (KB-11). */
+    fun onDeleteWordRepeat() = onDeleteRepeat()
     fun onSpaceLongPress()
     /** Caps lock straight away: TalkBack's long press on Shift, where two quick taps aren't possible (R1). */
     fun onShiftLock()
@@ -61,7 +63,13 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
             a11y.accessibilityFocusedVirtualViewId.takeIf { it != ExploreByTouchHelper.INVALID_ID }?.let {
                 a11y.getAccessibilityNodeProvider(this)?.performAction(it, AccessibilityNodeInfoCompat.ACTION_CLEAR_ACCESSIBILITY_FOCUS, null)
             }
-            field = v; closeAccents(); requestLayout(); invalidate()
+            field = v
+            // Fingers still down were on keys of the old layout: let them go, so none types a different key when lifted
+            // (or one past the end of a shorter layout). Then the new keys take hits straight away, so a finger that
+            // lands before the next layout pass gets a key of the new layout.
+            stopTouches()
+            if (width > 0 && height > 0) placeKeys()
+            requestLayout()
         }
     var shift: Shift = Shift.OFF
         set(v) { if (field != v) { field = v; invalidate(); a11y.invalidateRoot() } }
@@ -158,8 +166,13 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
     private val handler = Handler(Looper.getMainLooper())
     private var repeating = false
     private var repeatPointer = -1
+    /** Repeats since delete went down: past [CHAR_REPEATS] (about two seconds of holding), a word at a time (KB-11). */
+    private var repeats = 0
     private val repeatRunnable = object : Runnable {
-        override fun run() { listener.onDeleteRepeat(); handler.postDelayed(this, 50) }
+        override fun run() {
+            if (++repeats > CHAR_REPEATS) { listener.onDeleteWordRepeat(); handler.postDelayed(this, WORD_REPEAT_MS) }
+            else { listener.onDeleteRepeat(); handler.postDelayed(this, 50) }
+        }
     }
     private var lpPointer = -1
     private var lpIndex = -1
@@ -182,6 +195,11 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
+        placeKeys()
+    }
+
+    /** Lays out [rows] in this view's current size. Every layout has the same number of rows, so the height holds. */
+    private fun placeKeys() {
         val keyH = minOf(keyHeightDp * density, (height - 2 * pad - (rows.size - 1) * gap) / rows.size)
         val usable = width - 2 * pad
         val count = rows.sumOf { row -> row.count { it.type != KeyType.SPACER } }
@@ -407,6 +425,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 if (id >= MAX_POINTERS) return true
+                if (e.actionMasked == MotionEvent.ACTION_POINTER_DOWN) typeHeldKeys()
                 val hit = keyAt(e.getX(ai), e.getY(ai))
                 if (hit < 0) return true
                 pointerKey[id] = hit; consumed[id] = false
@@ -452,7 +471,7 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
                     if (pick != null) listener.onAlt(pick)
                 } else if (idx >= 0 && !consumed[id] && keyOf[idx].type != KeyType.DELETE) listener.onKey(keyOf[idx])
                 consumed[id] = false
-                // Always: the bubble may have been shown before the field changed to one without it (a password field).
+                // Always: the bubble may have been shown before the field changed to one without it (the bubble turned off).
                 popups?.bubbleUp()
                 invalidate()
             }
@@ -464,13 +483,32 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
         return true
     }
 
+    /**
+     * Fast typing: a key still held when the next finger lands is typed right then, so letters come out in the order
+     * they were pressed even when the first finger lifts last (that used to swap them: "teh" for "the", "hellow " for
+     * "hello w"). Shift typed this way capitalises the next letter. Not delete (it types on press), the layout and hide
+     * keys (holding ?123 while tapping a symbol stays as it was), or a key whose accent row is open.
+     */
+    private fun typeHeldKeys() {
+        for (p in 0 until MAX_POINTERS) {
+            val i = pointerKey[p]
+            if (i < 0 || i >= n || consumed[p] || p == popupPointer) continue
+            val k = keyOf[i]
+            if (k.type == KeyType.DELETE || k.type == KeyType.SYMBOLS || k.type == KeyType.SYMBOLS2 ||
+                k.type == KeyType.LETTERS || k.type == KeyType.HIDE || k.type == KeyType.SPACER) continue
+            consumed[p] = true
+            cancelTimers(p) // its long press can't come now
+            listener.onKey(k)
+        }
+    }
+
     private fun startTimers(pointer: Int, i: Int) {
         val key = keyOf[i]
         when {
             key.type == KeyType.DELETE -> {
                 listener.onKey(key) // delete fires on press, then repeats while held
                 handler.removeCallbacks(repeatRunnable)
-                repeating = true; repeatPointer = pointer
+                repeating = true; repeatPointer = pointer; repeats = 0
                 handler.postDelayed(repeatRunnable, 400)
             }
             key.alt != null || accentsAt(i) != null || key.type == KeyType.SPACE -> {
@@ -539,6 +577,9 @@ class KeyboardView(context: Context, private val listener: KeyListener) : View(c
 
     companion object {
         private const val MAX_POINTERS = 16
+        /** 400 ms, then 32 characters 50 ms apart: words from two seconds of holding. */
+        private const val CHAR_REPEATS = 32
+        private const val WORD_REPEAT_MS = 150L
         private const val WORDMARK = "KEYWARD"
         private val ACCENT_ACTIONS = intArrayOf(R.id.a11y_accent_0, R.id.a11y_accent_1, R.id.a11y_accent_2, R.id.a11y_accent_3)
         private const val WORDMARK_FADE_MS = 400f

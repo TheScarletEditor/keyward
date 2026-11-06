@@ -46,7 +46,7 @@ class KeyOverlay(context: Context) : View(context), KeyPopups {
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shadowed = Paint(Paint.ANTI_ALIAS_FLAG)
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = inter }
-    private val bubbleTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 30f, resources.displayMetrics)
+    private val bubbleTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, KeyBubble.TEXT_SP, resources.displayMetrics)
     private val accentTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 22f, resources.displayMetrics)
 
     init {
@@ -67,7 +67,8 @@ class KeyOverlay(context: Context) : View(context), KeyPopups {
     override fun bubbleDown(key: RectF, label: String) {
         val h = Tunables[KeysTuning.BUBBLE_H_DP] * density
         val bottom = offsetY + key.top - 6 * density
-        bubble.set(offsetX + key.left - 7 * density, bottom - h, offsetX + key.right + 7 * density, bottom)
+        val (l, r) = KeyBubble.span(offsetX + key.left, offsetX + key.right, KeyBubble.OVERHANG_DP * density, width.toFloat())
+        bubble.set(l, bottom - h, r, bottom)
         bubbleText = label
         bubbleShown = true; bubbleHeld = true
         invalidate()

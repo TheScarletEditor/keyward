@@ -2,6 +2,16 @@
 
 Against `docs/KEYS-0.2.2-PLAN.md`. Newest first. scarlet-hq mirrors these (hq-log).
 
+## 2026-11-04 and 05 (the owner, typing fixes in the common-issues draft PR)
+
+The owner's picks, word for word, relayed from the planning chat.
+
+| # | Question | Answer (word for word) | Effect | Check |
+|---|---|---|---|---|
+| Q68 | Which of the audit's open questions (KB-9 to KB-14) to build | "Build all except 5" | KB-9, KB-10, KB-11, KB-12 and KB-14 built; KB-13 (moving punctuation before a hand-typed space) skipped. | TypingRulesTest, KeyLabelsTest. |
+| Q69 | A missed space before a capital ("end.The") | "Split those too" | "end.The" then space is "end The"; words in capitals ("ASP.NET", "U.S.A") still keep their period. | TypingRulesTest. |
+| Q70 | Letter bubble size and password fields (KB-18; "I want slightly larger little bubbles with the letter I typed, like other keyboards have, so if I'm typing a password or something, I can see I typed the correct character") | As asked | Bubble 62 dp tall (was 54), 11 dp past each side of the key (was 7), letter 34 sp (was 30), kept on screen at the edges; shown in password fields too. Changes part of Q34: the window is still FLAG_SECURE everywhere and password fields still get no accent row. The "Show the letter above your finger" setting turns it off everywhere. | KeyBubbleTest; owner's phone test. |
+
 ## 2026-10-14 (the owner, after the 0.2.2 release: an easy download)
 
 The owner: "how do we get an easily downloadable version of this to people? My less tech savvy friends will not understand the build part of the github instructions". Picks, word for word.

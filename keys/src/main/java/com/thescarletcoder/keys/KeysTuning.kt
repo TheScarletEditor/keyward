@@ -26,7 +26,7 @@ object KeysTuning {
         Tunable(SNAP_OUT_MS, "Press", 120f, 0f, 400f, 10f, isInt = true),
         Tunable(LIP_DP, "Press", 1.5f, 0f, 4f, 0.25f),
         Tunable(LONGPRESS_MS, "Press", 350f, 150f, 800f, 10f, isInt = true),
-        Tunable(BUBBLE_H_DP, "Letter bubble", 54f, 40f, BUBBLE_H_MAX, 1f, isInt = true),
+        Tunable(BUBBLE_H_DP, "Letter bubble", 62f, 40f, BUBBLE_H_MAX, 1f, isInt = true), // was 54 (KB-18)
         Tunable(BUBBLE_HOLD_MS, "Letter bubble", 50f, 0f, 300f, 10f, isInt = true),
         Tunable(BUBBLE_FADE_MS, "Letter bubble", 110f, 0f, 400f, 10f, isInt = true),
         Tunable(STRIP_FADE_MS, "Suggestions", 90f, 0f, 300f, 10f, isInt = true),

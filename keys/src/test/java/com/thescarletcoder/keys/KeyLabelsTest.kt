@@ -9,6 +9,7 @@ import org.junit.Test
 class KeyLabelsTest {
     private val layouts = mapOf(
         "letters" to Layouts.letters, "symbols" to Layouts.symbols, "symbols2" to Layouts.symbols2, "numpad" to Layouts.numpad,
+        "lettersEmail" to Layouts.lettersEmail, "lettersUrl" to Layouts.lettersUrl, "phonepad" to Layouts.phonepad, "datepad" to Layouts.datepad,
     )
 
     @Test fun everyKeyHasASpokenLabel() {
@@ -54,5 +55,11 @@ class KeyLabelsTest {
         assertEquals("Capital Q", KeyLabels.spoken(Key("q"), Shift.ONE, EnterKind.RETURN, ""))
         assertEquals("q", KeyLabels.spoken(Key("q"), Shift.OFF, EnterKind.RETURN, ""))
         assertEquals("Backspace", KeyLabels.spoken(Key("delete", KeyType.DELETE), Shift.OFF, EnterKind.RETURN, ""))
+    }
+
+    @Test fun forgettingAWordSaysWhichWord() {
+        assertEquals("Remove \u201Cteh\u201D from your words?", KeyLabels.forgetPrompt("teh"))
+        assertEquals("Remove teh from your words", KeyLabels.forgetConfirm("teh"))
+        assertEquals("Keep teh", KeyLabels.forgetCancel("teh"))
     }
 }

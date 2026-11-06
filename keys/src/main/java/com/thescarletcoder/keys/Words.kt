@@ -11,6 +11,16 @@ object Words {
     /** Something that can be learned or saved: 2 to [MAX_LETTERS] word characters, nothing else. */
     fun isWord(w: String) = w.length in 2..MAX_LETTERS && w.all(::isWordChar)
 
+    /**
+     * A suggestion in the user's capitalisation: "Hello" -> "Hello", "HELLO" -> "HELLO", "Dont" -> "Don't". A capital
+     * the word has of its own stays ("ill" -> "I'll").
+     */
+    fun matchCase(typed: String, word: String): String = when {
+        typed.length > 1 && typed.all { !it.isLetter() || it.isUpperCase() } -> word.uppercase()
+        typed.firstOrNull()?.isUpperCase() == true -> word.replaceFirstChar { it.uppercaseChar() }
+        else -> word
+    }
+
     /** In an EditorInfo's privateImeOptions from Keyward's own screens: nothing typed there is learned or corrected (the words search). */
     const val NO_LEARN = "com.thescarletcoder.keys.noLearn"
 
